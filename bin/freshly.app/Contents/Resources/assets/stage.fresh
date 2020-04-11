@@ -1,0 +1,82 @@
+// freshly Normal Stage 
+
+object AppStage theStage {
+
+	stageDimensions "240,136"
+    consoleHost DisplayObjectContainer'screenEffects_inner'
+	valueControls ValueControls'valueControls'
+
+	children [
+		object ScreenEffects screenEffects {
+			scale 2
+
+			inheritParentFrame true
+
+			inner DisplayObjectContainer'$^_inner'
+			shaderProgramPrimaryPost ShaderProgram'tv_post'
+			shaderProgram ShaderProgram'CRT'
+			shaderProgramCopy ShaderProgram'copy'
+			shaderProgramBloomTonemap ShaderProgram'bloom_tonemap'
+			shaderProgramHorizontalBlur ShaderProgram'horizontal_blur'
+			shaderProgramVerticalBlur ShaderProgram'vertical_blur'
+			shaderProgramComposite ShaderProgram'composite'
+
+			noiseTexture Texture'noise'
+			pixelBevelTextures [ Texture'bevel_01', Texture'bevel_02' ]
+
+			currentStateName "normal"
+
+			shaderStates {
+				none << EOF {
+					bloomBrightness = 0.0 ,
+					bloomContrast = 0 ,
+					bloomIntensity = 0.0 ,
+					burnIn = 0.0 ,
+					chromaticAberration = 0.0 ,
+					noiseIntensity = 0.0 ,
+					rescanColor = (0) ,
+					saturation = 1.0 ,
+					colorMultiplied = (1) ,
+					bevelIntensity = 0.0 ,
+                    barrelDistortion = 0.0 ,
+				} EOF
+				normal << EOF {
+					bloomBrightness = -0.25 ,
+					bloomContrast = 5 ,
+					bloomIntensity = 1 ,
+					burnIn = 0.05 ,
+					chromaticAberration = 0.5 ,
+					noiseIntensity = 0.015 ,
+					rescanColor = (0.75, 0.75, 0.75, 1.0) ,
+					saturation = 1.0 ,
+					colorMultiplied = (1) ,
+                    bevelIntensity = 0.5 ,
+                    barrelDistortion = 0.3 ,
+				} EOF
+			}
+			
+			children [				
+				object DisplayObjectContainer $^_inner {
+					inheritParentFrame true
+
+					renderTarget object RenderTarget {
+						width "240"
+						height "136"
+						clearColor 40
+						doInitialClearOnCapture "true"
+						depthBufferFormat <<EOF {
+							colorComponentType = UnsignedByte,
+							outputType = Renderbuffer
+						} EOF
+					}
+				}
+			]
+		}
+		
+		object ValueControls valueControls {
+			ignoreFrameAttachment false
+			parentFrameAttachPoint 1, -1
+			position -40,10
+		}
+	]
+}
