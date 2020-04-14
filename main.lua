@@ -366,7 +366,7 @@ end
 -- DRAW
 
 function draw()
-	-- cls( 0xff220044 )
+	cls( 0xff220044 )
 
 	camera( 0, 0 )
 	drawDebug()
