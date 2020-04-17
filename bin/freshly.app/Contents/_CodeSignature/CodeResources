@@ -102,7 +102,7 @@
 		</data>
 		<key>Resources/assets/freshscene2d_assets.fresh</key>
 		<data>
-		lhV5+CBf734ctdOFrIBV92l00kY=
+		a9DNho2dHA0/ttRkuHeZyMQc4iM=
 		</data>
 		<key>Resources/assets/games/autorun/audio/alert_00.wav</key>
 		<data>
@@ -155,6 +155,10 @@
 		<key>Resources/assets/games/autorun/audio/family0.mp3</key>
 		<data>
 		8nO36lnH/xuJtLld4vrZqQyy3G8=
+		</data>
+		<key>Resources/assets/games/autorun/audio/forest.ftm</key>
+		<data>
+		SndEy+oRZpjnvUfrjU7QlCYEno8=
 		</data>
 		<key>Resources/assets/games/autorun/audio/hit_swing_00.wav</key>
 		<data>
@@ -302,7 +306,7 @@
 		</data>
 		<key>Resources/assets/games/autorun/main.lua</key>
 		<data>
-		9nIp7ijCCr8N2GabuqpVO/bzgNE=
+		jKY2Kx8hRcyZzMYpEB1o7kPcif4=
 		</data>
 		<key>Resources/assets/games/autorun/map.tmx</key>
 		<data>
@@ -346,11 +350,11 @@
 		</data>
 		<key>Resources/assets/shaders/SpriteBatch.fsh</key>
 		<data>
-		jN/iUMDJ7WzLcnVS+husyMmUCeg=
+		rT0Evw91AtWx12oy5loQo/qYJuk=
 		</data>
 		<key>Resources/assets/shaders/SpriteBatch.vsh</key>
 		<data>
-		Vg14MwjDPWP2Xxi1NHl4IWCHGWA=
+		/Bsg//NYFhcQE7ME4/8wjeK5q1I=
 		</data>
 		<key>Resources/assets/shaders/bloom_tonemap.fsh</key>
 		<data>
@@ -414,7 +418,7 @@
 		</data>
 		<key>Resources/assets/ver/version.txt</key>
 		<data>
-		JUrraSDHYLlgDt2NikWOQLsBVv8=
+		iO4FD2e4y6xXmtiXWxs1yWETjIU=
 		</data>
 		<key>Resources/assets/ver/version_Android.txt</key>
 		<data>
@@ -422,11 +426,11 @@
 		</data>
 		<key>Resources/assets/ver/version_Mac.txt</key>
 		<data>
-		JUrraSDHYLlgDt2NikWOQLsBVv8=
+		iO4FD2e4y6xXmtiXWxs1yWETjIU=
 		</data>
 		<key>Resources/assets/ver/version_iOS.txt</key>
 		<data>
-		Io8mYPNARDKP5xNU0hXTk9+put8=
+		2Z27pEyKxlSb8CumCYTpWZDMNI8=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -699,11 +703,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			lhV5+CBf734ctdOFrIBV92l00kY=
+			a9DNho2dHA0/ttRkuHeZyMQc4iM=
 			</data>
 			<key>hash2</key>
 			<data>
-			MnXSwao1GD4fl5mQzfKQahUiZOLuvJHDr/XmOF0/79I=
+			+gsyedUV/hnFgIwpYhC8TPpJhebUOoX6XqBCqSkwNjo=
 			</data>
 		</dict>
 		<key>Resources/assets/games/autorun/audio/alert_00.wav</key>
@@ -847,6 +851,17 @@
 			<key>hash2</key>
 			<data>
 			JesSRbmEDwCPJ+e4SwYGfZNhiNJJ7BSI1LC9TjF8lR4=
+			</data>
+		</dict>
+		<key>Resources/assets/games/autorun/audio/forest.ftm</key>
+		<dict>
+			<key>hash</key>
+			<data>
+			SndEy+oRZpjnvUfrjU7QlCYEno8=
+			</data>
+			<key>hash2</key>
+			<data>
+			CABLN2bzn+ejEikzq+kac0W8fY4pHGrwBBKz/QLuTVY=
 			</data>
 		</dict>
 		<key>Resources/assets/games/autorun/audio/hit_swing_00.wav</key>
@@ -1249,11 +1264,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			9nIp7ijCCr8N2GabuqpVO/bzgNE=
+			jKY2Kx8hRcyZzMYpEB1o7kPcif4=
 			</data>
 			<key>hash2</key>
 			<data>
-			no3N8R3E10WhrOcoL19RNd+uQxmLx61hARjo9u8/bcE=
+			p6/3o9XfBndP7Ovu4o/zVIOl6MytDxvSQ4ts2VXf/F8=
 			</data>
 		</dict>
 		<key>Resources/assets/games/autorun/map.tmx</key>
@@ -1370,22 +1385,22 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			jN/iUMDJ7WzLcnVS+husyMmUCeg=
+			rT0Evw91AtWx12oy5loQo/qYJuk=
 			</data>
 			<key>hash2</key>
 			<data>
-			pXEyxguQtVGYbaASoEtW+pug3yRFyaZAqM+ae4VHOI0=
+			WIee3mOMZTlNW84FFkc4MojAEamwFToMsuppU2KIRB0=
 			</data>
 		</dict>
 		<key>Resources/assets/shaders/SpriteBatch.vsh</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			Vg14MwjDPWP2Xxi1NHl4IWCHGWA=
+			/Bsg//NYFhcQE7ME4/8wjeK5q1I=
 			</data>
 			<key>hash2</key>
 			<data>
-			7lnHqFwb/rB9EitE+2GJSo1yBFOnqm93In+qqg4AgI4=
+			86KjcBTJ9MPH6X6V9WazvgsWFi4t32yoUxQmYFEMCpU=
 			</data>
 		</dict>
 		<key>Resources/assets/shaders/bloom_tonemap.fsh</key>
@@ -1557,11 +1572,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			JUrraSDHYLlgDt2NikWOQLsBVv8=
+			iO4FD2e4y6xXmtiXWxs1yWETjIU=
 			</data>
 			<key>hash2</key>
 			<data>
-			wqxHAeGZ6z/Q7GUvifcpxejeMZ+Z1XXdUFgFXmPtkq4=
+			b/M1B8PotuExLpdkgXJ8AwkENfsMImHMFqhW1KkSNAw=
 			</data>
 		</dict>
 		<key>Resources/assets/ver/version_Android.txt</key>
@@ -1579,22 +1594,22 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			JUrraSDHYLlgDt2NikWOQLsBVv8=
+			iO4FD2e4y6xXmtiXWxs1yWETjIU=
 			</data>
 			<key>hash2</key>
 			<data>
-			wqxHAeGZ6z/Q7GUvifcpxejeMZ+Z1XXdUFgFXmPtkq4=
+			b/M1B8PotuExLpdkgXJ8AwkENfsMImHMFqhW1KkSNAw=
 			</data>
 		</dict>
 		<key>Resources/assets/ver/version_iOS.txt</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			Io8mYPNARDKP5xNU0hXTk9+put8=
+			2Z27pEyKxlSb8CumCYTpWZDMNI8=
 			</data>
 			<key>hash2</key>
 			<data>
-			3IuNocA1pu8lqLWeGcvv62VXRnZtkPkVFj9YPdBTnIY=
+			IpkwZ4Ba+sdUDliDNce+jv+/Is/347SgNkXi0n3CRJ8=
 			</data>
 		</dict>
 	</dict>

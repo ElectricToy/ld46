@@ -37,13 +37,17 @@ object VertexStructureLoader VS_Pos2TexCoord2Col4 {
 		]
 	}
 }
-object VertexStructureLoader VS_Pos2TexCoord2Col4Col4 {
+object VertexStructureLoader VS_SpriteBatch {
 	passthrough {
 		attributes [
-			"{ nComponents=2, type=Float, usage=Position, name=position }"
-			"{ nComponents=2, type=Float, usage=TexCoord, name=texCoord }"
-			"{ nComponents=4, type=Float, usage=Color, name=color }"
-			"{ nComponents=4, type=Float, usage=Color, name=additiveColor }"
+			"{ nComponents=2,  type=Float, usage=Position, name=position }"
+			"{ nComponents=2,  type=Float, usage=TexCoord, name=texCoord }"
+			"{ nComponents=4,  type=Float, usage=Color, name=color }"
+			"{ nComponents=4,  type=Float, usage=Color, name=additiveColor }"
+			"{ nComponents=4, type=Float, usage=Other, name=ditherPattern }"
+			"{ nComponents=4, type=Float, usage=Other, name=ditherPattern1 }"
+			"{ nComponents=4, type=Float, usage=Other, name=ditherPattern2 }"
+			"{ nComponents=4, type=Float, usage=Other, name=ditherPattern3 }"
 		]
 	}
 }
@@ -108,7 +112,7 @@ object ShaderProgramLoader PlainVanilla {
 object ShaderProgramLoader SpriteBatch {
 	vertexShaderSourcePath "assets/shaders/SpriteBatch.vsh"
 	fragmentShaderSourcePath "assets/shaders/SpriteBatch.fsh"
-	vertexStructure "VS_Pos2TexCoord2Col4Col4"
+	vertexStructure "VS_SpriteBatch"
 
 	passthrough {
 		uniformUpdaters [

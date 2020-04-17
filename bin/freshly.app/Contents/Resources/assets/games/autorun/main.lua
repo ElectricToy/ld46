@@ -267,10 +267,10 @@ local debugMessages = {}
 
 function drawDebugCircles()
 	for _, circle in ipairs( debugCircles ) do
-		circ( circle[1].x, circle[1].y, 32 )	-- TODO!!!
+		circ( circle[1].x, circle[1].y, circle[2] or 32, circle[3] or 0xFFFFFFFF )	-- TODO!!!
 	end
 
-	debugCircles = {}
+	-- debugCircles = {}
 end
 
 function drawDebug()
@@ -1597,10 +1597,10 @@ function collideActorWithTile( actor, tileX, tileY )
 
 		local vel = effectiveVelocity( actor )
 
-		local colliding, normalX, normalY, hitAxis, adjustmentDistance = rect_collision_adjustment( 
+		local colliding, normalX, normalY, hitAxis, adjustmentDistance = table.unpack( rect_collision_adjustment( 
 			bounds.left, bounds.top, bounds.right, bounds.bottom, 
 			tileX * PIXELS_PER_TILE, tileY * PIXELS_PER_TILE, ( tileX + 1 ) * PIXELS_PER_TILE, ( tileY + 1 ) * PIXELS_PER_TILE,
-			vel.x, vel.y )
+			vel.x, vel.y ))
 
 		if colliding then
 			local adjustment = vec2:new( normalX * adjustmentDistance, normalY * adjustmentDistance )
@@ -1799,6 +1799,19 @@ function actorOccludesPlayer( actor )
 	return rectsOverlap( myBounds, playerBounds )
 end
 
+function bitPatternForAlpha( alpha )
+	local iAlpha = math.floor( alpha * 16 )
+	local pattern = 0
+
+	local bit = 1
+	for i = 0, iAlpha do
+		pattern = pattern | bit
+		bit = ( bit << 7 ) % 0xFFFF
+	end
+
+	return ~pattern
+end
+
 function drawActor( actor )
 	local animation = currentAnimation( actor )
 	if animation == nil then return end
@@ -1809,6 +1822,8 @@ function drawActor( actor )
 
 	local sprite = frameSpriteIndex( frames[ cur_frame + 1 ] )
 
+	fillp( bitPatternForAlpha( actor.occlusionOpacity ))
+
 	spr( sprite, 
 		round( actor.pos.x - actor.config.ulOffset.x ), 
 		round( actor.pos.y - actor.config.ulOffset.y ), 
@@ -1816,9 +1831,12 @@ function drawActor( actor )
 		actor.config.tileSizeY, 
 		actor.vel.x > 0,
 		false,
-		colorMultiplyComponents( actorColor( actor ), actor.occlusionOpacity ),
+		-- colorMultiplyComponents( actorColor( actor ), actor.occlusionOpacity ),
+		actorColor( actor ),
 		actorAdditiveColor( actor )
 	)
+
+	fillp( 0 )
 end
 
 function rectsOverlap( rectA, rectB )
@@ -2611,8 +2629,8 @@ end
 -- TILES
 
 -- Impassable tiles
-fset( spriteIndex( 27, 27 ), 1, 1 )		-- forest
-fset( spriteIndex( 12, 21 ), 1, 1 )		-- water
+fset    ( spriteIndex( 27, 27 ), 1, 1 )		-- forest
+fset    ( spriteIndex( 12, 21 ), 1, 1 )		-- water
 
 -- MAINS
 
@@ -2952,7 +2970,39 @@ function actorControlThrust( actor, thrust )
 	end
 end
 
+function updateTouch( actor )
+	local x = touchupx()
+	local y = touchupy()
+
+	if x < 0 or y < 0 then return end
+
+	-- Convert touch to world space
+	x = x + viewLeft
+	y = y + viewTop
+
+	local radius = actorCollisionRadius( actor )
+
+	-- local foundDest, destX, destY = navdest( x, y, radius, actor.pos.x, actor.pos.y )
+	local navResult = navdest( x, y, radius, actor.pos.x, actor.pos.y )
+	local foundDest = navResult[1]
+	local destX = navResult[2]
+	local destY = navResult[3]
+
+	trace( 'dest: ' .. (foundDest and 'true' or 'false') .. ' ' .. destX .. ' ' .. destY )
+
+	if not foundDest then return end
+
+	local path = nav( actor.pos.x, actor.pos.y, destX, destY, radius, true )
+
+	for _, bread in ipairs( path ) do
+		trace( 'bread: ' .. bread[1] .. ',' .. bread[2] )
+		debugCircle( { x = bread[1], y = bread[2] }, 10 )
+	end
+end
+
 function updateInput( actor )
+
+	updateTouch( actor )
 
 	local thrust = vec2:new()
 
@@ -3073,15 +3123,16 @@ function drawHUD()
 end
 
 function draw()
-	-- cls( 0xff220044 )
+	cls( 0xff000000 )
 
 	updateViewTransform()
 
+	fillp( 0 )
 	drawMap()
 
 	drawActors()
 
-	-- drawDebugCircles()
+	drawDebugCircles()
 
 	drawHUD()
 
