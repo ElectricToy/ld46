@@ -858,6 +858,8 @@ blockAnimSets = {
 	{ speed = 2, frames = range( 297, 297+3 ) },
 	{ speed = 2, frames = range( 325, 325+3 ) },
 	{ speed = 2, frames = range( 329, 329+3 ) },
+	{ speed = 2, frames = range( 357, 357+3 ) },
+	{ speed = 2, frames = range( 361, 361+3 ) },
 }
 
 function worldTilePosToIndex( x, y )
@@ -895,7 +897,8 @@ end
 function blockAbuttingSouthVersion( blockTypeIndex )
 	if  (blockTypeIndex >= 261 and blockTypeIndex <= 264) and
 		(blockTypeIndex >= 293 and blockTypeIndex <= 296) and
-		(blockTypeIndex >= 325 and blockTypeIndex <= 328) then
+		(blockTypeIndex >= 325 and blockTypeIndex <= 328) and
+		(blockTypeIndex >= 357 and blockTypeIndex <= 360) then
 			return blockTypeIndex
 	else
 		return blockTypeIndex + 4
@@ -938,6 +941,16 @@ blockTypes = {
 	},
 	[261+32*2+4] = {
 		conveyor = { direction = vec2:new( 0, 1 )},
+		onPlaced = conveyorOnPlaced,
+		tick = conveyorTick,
+	},
+	[261+32*3] = {
+		conveyor = { direction = vec2:new( -1, 0 )},
+		onPlaced = conveyorOnPlaced,
+		tick = conveyorTick,
+	},
+	[261+32*3+4] = {
+		conveyor = { direction = vec2:new( -1, 0 )},
 		onPlaced = conveyorOnPlaced,
 		tick = conveyorTick,
 	},
