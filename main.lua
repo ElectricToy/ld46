@@ -859,7 +859,15 @@ blockAnimSets = {
 	conveyorNorth = { 
 		speed = 2,
 		frames = range( 265, 268 )
-	}
+	},
+	conveyorEastWithLip = { 
+		speed = 2,
+		frames = range( 293, 293+3 )
+	},
+	conveyorEast = { 
+		speed = 2,
+		frames = range( 297, 297+3 )
+	},
 }
 
 function worldTilePosToIndex( x, y )
@@ -880,8 +888,8 @@ end
 
 CONVEYOR_FORCE = 0.105
 
-function blockTickConveyor( direction, x, y )
-	-- trace( 'tick ' .. ticks )
+function conveyorTick( x, y, blockType, blockTypeIndex )
+	local direction = blockType.conveyor.direction
 	forEachActorOnBlock( x, y, function( actor )
 		actorConveyorForce( actor, direction * CONVEYOR_FORCE )
 	end)
@@ -894,25 +902,43 @@ function withBlockTypeAt( x, y, callback )
 	end
 end
 
+function blockAbuttingSouthVersion( blockTypeIndex )
+	if  (blockTypeIndex >= 261 and blockTypeIndex <= 264) and
+		(blockTypeIndex >= 293 and blockTypeIndex <= 297) then
+		return blockTypeIndex
+	else
+		return blockTypeIndex + 4
+	end
+end
+
+function conveyorOnPlaced( x, y, blockType, blockTypeIndex )
+	withBlockTypeAt( x, y + 1, function( southernBlockType ) 
+		if southernBlockType.conveyor ~= nil then
+			mset( x, y, blockAbuttingSouthVersion( blockTypeIndex ) )
+		end
+	end)
+end
+
 blockTypes = {
 	[261] = {
-		conveyor = true,
-		onPlaced = function( x, y )
-			withBlockTypeAt( x, y + 1, function( blockType ) 
-				if blockType.conveyor ~= nil then
-					mset( x, y, 265 )
-				end
-			end)
-		end,
-		tick = function( x, y )
-			blockTickConveyor( vec2:new( 0, -1 ), x, y )
-		end
+		conveyor = { direction = vec2:new( 0, -1 )},
+		onPlaced = conveyorOnPlaced,
+		tick = conveyorTick,
 	},
 	[265] = {
-		conveyor = true,
-		tick = function( x, y )
-			blockTickConveyor( vec2:new( 0, -1 ), x, y )
-		end
+		conveyor = { direction = vec2:new( 0, -1 )},
+		onPlaced = conveyorOnPlaced,
+		tick = conveyorTick,
+	},
+	[293] = {
+		conveyor = { direction = vec2:new( 1, 0 )},
+		onPlaced = conveyorOnPlaced,
+		tick = conveyorTick,
+	},
+	[297] = {
+		conveyor = { direction = vec2:new( 1, 0 )},
+		onPlaced = conveyorOnPlaced,
+		tick = conveyorTick,
 	},
 }
 
@@ -950,8 +976,8 @@ function fixupBlockData()
 		end
 	end
 
-	forEachBlock( function( x, y, block )
-		if block.onPlaced then block.onPlaced( x, y ) end
+	forEachBlock( function( x, y, blockType, blockTypeIndex )
+		if blockType.onPlaced then blockType.onPlaced( x, y, blockType, blockTypeIndex ) end
 	end )
 end
 
@@ -965,7 +991,7 @@ function updateBlock( x, y, blockType, blockTypeIndex )
 	assert( blockType )
 
 	if blockType.tick then
-		blockType.tick( x, y )
+		blockType.tick( x, y, blockType, blockTypeIndex )
 	end
 	
 	local animSet = blockType.animSet
