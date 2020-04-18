@@ -8,7 +8,7 @@ end
 text_scale( 1 )
 filter_mode( "Nearest" )
 
-screen_size( 240, 160 )
+screen_size( 160, 120 )
 
 SPRITE_SHEET_PIXELS_X = 512
 PIXELS_PER_TILE = 16
@@ -22,15 +22,15 @@ barrel_ = 0.2
 bloom_intensity_ = 0
 bloom_contrast_ = 0
 bloom_brightness_ = 0
-burn_in_ = 0
-chromatic_aberration_ = 0
+burn_in_ = 0.15
+chromatic_aberration_ = 0.4
 noise_ = 0.025
-rescan_ = 0.25
+rescan_ = 0.5
 saturation_ = 1
 color_multiplied_r = 1
 color_multiplied_g = 1
 color_multiplied_b = 1
-bevel_ = 0.75
+bevel_ = 0.20
 
 local barrel_smoothed = barrel_
 local bloom_intensity_smoothed = bloom_intensity_
@@ -358,7 +358,7 @@ end
 -- UPDATE
 
 local s = 0
-local frames = { 2, 3, 4, 3 }
+local frames = { 6, 7, 8, 7 }
 
 function update()
 
@@ -375,6 +375,7 @@ end
 function draw()
 	cls( 0xff596978 )
 
+	map( 0, 0, 0, 0, 16, 16 )
 	spr( frames[ math.floor( s ) % #frames + 1 ], 80, 60 )
 
 	camera( 0, 0 )
