@@ -341,7 +341,259 @@ end
 
 -- Objects
 
+function rectsOverlap( rectA, rectB )
+	return not ( rectB.right < rectA.left or rectB.left > rectA.right or rectB.bottom < rectA.top or rectB.top > rectA.bottom )
+end
+
+function rectOverlapsPoint( rect, pos )
+	return rect.left <= pos.x and pos.x <= rect.right and rect.top <= pos.y and pos.y <= rect.bottom
+end
+
+function expandContractRect( rect, expansion )
+	rect.left = rect.left - expansion
+	rect.top = rect.top - expansion
+	rect.right = rect.right + expansion
+	rect.bottom = rect.bottom + expansion
+	return rect
+end
+
+function sprite_by_grid( x, y )
+	return y // TILES_X + x
+end
+
+function range( from, to, step )
+	arr = {}
+	for i = from, to, step or 1 do
+		table.insert( arr, i )
+	end
+	return arr
+end
+
+local actors = {}
+
+function updateViewTransform()
+	local viewOffset = vec2:new( screen_wid() / 2, screen_hgt() / 2 )
+
+	viewOffset.y = screen_hgt() / 2
+
+	local viewPoint = ( player.pos - vec2:new( 0, 10 ) ) - viewOffset
+
+	trace( 'view: ' .. viewPoint:__tostring() )
+
+	setWorldView( viewPoint.x, viewPoint.y )
+end
+
+function startGame()
+	actors = {}
+
+	color_multiplied_r = 1
+	color_multiplied_g = 1
+	color_multiplied_b = 1
+	color_multiplied_r_smoothed = 0
+	color_multiplied_g_smoothed = 0
+	color_multiplied_b_smoothed = 0
+
+
+	player = createActor( 'player', 8 * PIXELS_PER_TILE, 44 * PIXELS_PER_TILE )
+
+	updateViewTransform()
+end
+
+actorConfigurations = {
+	player = {
+		dims = vec2:new( 30, 24 ),
+		ulOffset = vec2:new( 16, 29 ),
+		tileSizeX = 2,
+		tileSizeY = 2,
+		inert = true,
+		animations = {
+			south = {
+				idle = { speed = 0, frames = { 1 }},
+				run =  { speed = 0.2, frames = { 2, 3, 4, 3 }}
+			},
+			north = {
+				idle = { speed = 0, frames = { 5 }},
+				run =  { speed = 0.2, frames = { 6, 7, 8, 7 }}
+			},
+			side = {
+				idle = { speed = 0, frames = { 33 }},
+				run = { speed = 0.2, frames = range( 34, 34 + 7 ) }
+			},
+		}
+	}
+}
+function createActor( configKey, x, y )
+	local config = actorConfigurations[ configKey ]
+	assert( config )
+
+	local actor = {
+		birthdate = now(),
+		config = config,
+		pos = vec2:new( x, y ),
+		lastPos = vec2:new( x, y ),
+		vel = vec2:new( 0, 0 ),
+		heading = vec2:new( -1, 0 ),
+		animFrame = 0,
+		lastFrame = 0,
+		occluding = false,
+		occlusionOpacity = 1.0
+	}
+
+	table.insert( actors, actor )
+
+	return actor
+end
+
+function effectiveVelocity( actor )
+	return actor.pos - actor.lastPos
+end
+
+function speed( actor )
+	return actor.vel:length()
+end
+
+function onFrameChanged( actor )
+	local animation = currentAnimation( actor )
+	if animation ~= nil then
+		
+		-- call event if it's there.
+
+		local frames = animation.frames
+		local frameIndex = math.floor( actor.animFrame ) % #frames
+		local frame = frames[ frameIndex + 1 ]
+
+		if type( frame ) == 'table' then
+			if frame.event ~= nil then
+				frame.event( actor )
+			end
+		end
+	end
+end
+
+function actorSetFrame( actor, frame )
+	actor.animFrame = frame
+
+	if math.floor( actor.animFrame ) ~= math.floor( actor.lastFrame ) then
+		onFrameChanged( actor )
+		actor.lastFrame = actor.animFrame
+	end
+end
+
+function currentAnimation( actor )
+	local animations = actor.config.animations
+	
+	if animations == nil then return nil end
+
+	local anim = ( math.abs( speed( actor )) > 0.1 ) and 'run' or 'idle'
+	if anim == 'run' and animations.run == nil then
+		anim = 'idle'
+	end
+
+	if actor.config.amendAnimName ~= nil then
+		anim = actor.config.amendAnimName( actor, anim )
+	end
+
+	return animations[ anim ]
+end
+
+function actorBounds( actor )
+	local foot = actor.pos
+
+	return {
+		left = foot.x - actor.config.dims.x / 2,
+		top = foot.y - actor.config.dims.y,
+		right = foot.x + actor.config.dims.x / 2,
+		bottom = foot.y,
+	}
+end
+
+function actorVisualBounds( actor )
+	local ul = actor.pos - actor.config.ulOffset
+
+	local wid = actor.config.tileSizeX * PIXELS_PER_TILE
+	local hgt = actor.config.tileSizeY * PIXELS_PER_TILE
+
+	return {
+		left = ul.x,
+		top = ul.y,
+		right = ul.x + wid,
+		bottom = ul.y + hgt,
+	}
+end
+
+function frameSpriteIndex( frame )
+	return ( type( frame ) == 'table' and frame.frame ) or frame
+end
+
+function actorColor( actor )
+	return actor.flickerColor or 0xFFFFFFFF
+end
+
+function floatTermToColor( term )
+	local component = math.floor( lerp( 0, 0xFF, term ))
+	return ( 0xFF << 24 ) | ( component << 16 ) | ( component << 8 ) | component
+end
+
+function actorAdditiveColor( actor )
+	return actor.additiveColor or 0x00000000
+end
+
+function actorOccludesPlayer( actor )
+	if player.pos.y > actor.pos.y then return false end
+
+	local myBounds = actorBounds( actor )
+	local playerBounds = expandContractRect( actorBounds( player ), 16 )
+
+	return rectsOverlap( myBounds, playerBounds )
+end
+
+
+function bitPatternForAlpha( alpha )
+	local iAlpha = math.floor( alpha * 16 )
+	local pattern = 0
+
+	local bit = 1
+	for i = 0, iAlpha do
+		pattern = pattern | bit
+		bit = ( bit << 7 ) % 0xFFFF
+	end
+
+	return ~pattern
+end
+
+function actorOpacityForDither( actor )
+	return actor.occlusionOpacity or 1.0
+end
+
+function drawActor( actor )
+	local animation = currentAnimation( actor )
+	if animation == nil then return end
+
+	local frames = animation.frames
+
+	local cur_frame = math.floor( actor.animFrame ) % #frames
+
+	local sprite = frameSpriteIndex( frames[ cur_frame + 1 ] )
+
+	fillp( bitPatternForAlpha( actorOpacityForDither( actor ) ))
+
+	spr( sprite, 
+		round( actor.pos.x - actor.config.ulOffset.x ), 
+		round( actor.pos.y - actor.config.ulOffset.y ), 
+		actor.config.tileSizeX, 
+		actor.config.tileSizeY, 
+		actor.vel.x > 0,
+		false,
+		actorColor( actor ),
+		actorAdditiveColor( actor )
+	)
+
+	fillp( 0 )
+end
+
 -- GLOBALS
+
+actorDrawMargin = PIXELS_PER_TILE
 
 -- TIME
 
@@ -358,7 +610,6 @@ end
 -- UPDATE
 
 local s = 0
-local frames = { 6, 7, 8, 7 }
 
 function update()
 
@@ -372,12 +623,101 @@ end
 
 -- DRAW
 
-function draw()
-	cls( 0xff596978 )
+local viewLeft = 0
+local viewTop = 0
+function setWorldView( x, y )
+	x = clamp( x, 0, WORLD_SIZE_PIXELS - screen_wid() )
+	y = clamp( y, 0, WORLD_SIZE_PIXELS - screen_hgt() )
 
-	map( 0, 0, 0, 0, 16, 16 )
-	spr( frames[ math.floor( s ) % #frames + 1 ], 80, 60 )
+	viewLeft = round( x, 1.0 )
+	viewTop = round( y, 1.0 )
+	camera( viewLeft, viewTop )
+end
+
+function viewBounds()
+	return {
+		left = viewLeft,
+		top = viewTop,
+		right = viewLeft + screen_wid(),
+		bottom = viewTop + screen_hgt(),
+	}
+end
+
+function worldBoundsToTerrainBounds( bounds )
+	local tileBounds = {
+		left = 		worldToTile( bounds.left ),
+		top = 		worldToTile( bounds.top ),
+		right = 	worldToTile( bounds.right ),
+		bottom = 	worldToTile( bounds.bottom ),
+	}
+	return tileBounds
+end
+
+function drawMap()
+	local bounds = viewBounds()
+	local tiles = worldBoundsToTerrainBounds( bounds )
+	local wid = tiles.right - tiles.left + 1
+	local hgt = tiles.bottom - tiles.top + 1
+
+	map( tiles.left, tiles.top, tiles.left * PIXELS_PER_TILE, tiles.top * PIXELS_PER_TILE, wid, hgt )
+end
+
+function actorDrawBounds()
+	local bounds = viewBounds()
+	expandContractRect( bounds, actorDrawMargin )
+	return bounds
+end
+
+function drawActors()
+	local bounds = actorDrawBounds()
+
+	-- only draw actors in bounds.
+	local drawnActors = {}
+
+	for _, actor in ipairs( actors ) do
+		if rectsOverlap( bounds, actorVisualBounds( actor ) ) then
+			table.insert( drawnActors, actor )
+		end
+	end
+
+	table.sort( drawnActors, function( a, b )
+		return a.pos.y < b.pos.y
+	end )
+
+	-- count occluders
+	local numOccludingActors = 0
+	for _, actor in ipairs( drawnActors ) do
+		actor.occluding = actor.config.fadeForPlayer and actorOccludesPlayer( actor )
+		if actor.occluding then
+			numOccludingActors = numOccludingActors + 1
+		end
+	end
+
+	local targetOpacity = numOccludingActors > 0 and ( 0.5 / ( numOccludingActors ^ (1/2) )) or 1.0
+
+	-- trace( numOccludingActors .. ' ' .. targetOpacity )
+
+	for _, actor in ipairs( drawnActors ) do
+		local actorOpacity = actor.occluding and targetOpacity or 1.0
+		actor.occlusionOpacity = lerp( actor.occlusionOpacity, actorOpacity, 0.2 )
+
+		drawActor( actor )
+	end
+
+end
+
+function draw()
+	cls( 0xff000040 )
+
+	updateViewTransform()
+
+	fillp( 0 )
+	drawMap()
+
+	drawActors()
 
 	camera( 0, 0 )
 	drawDebug()
 end
+
+startGame()
