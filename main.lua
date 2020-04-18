@@ -8,7 +8,9 @@ end
 text_scale( 1 )
 filter_mode( "Nearest" )
 
-screen_size( 160, 120 )
+screen_size( 220, 128 )
+
+MIN_ACTIVE_BLOCK_INDEX = 256
 
 SPRITE_SHEET_PIXELS_X = 512
 PIXELS_PER_TILE = 16
@@ -16,7 +18,8 @@ TILES_X = SPRITE_SHEET_PIXELS_X // PIXELS_PER_TILE
 
 sprite_size( PIXELS_PER_TILE )
 
-WORLD_SIZE_PIXELS = 64 * PIXELS_PER_TILE
+WORLD_SIZE_TILES = 32
+WORLD_SIZE_PIXELS = WORLD_SIZE_TILES * PIXELS_PER_TILE
 
 barrel_ = 0.2
 bloom_intensity_ = 0
@@ -153,6 +156,10 @@ end
 
 function vec2:dot(v)
   return self.x * v.x + self.y * v.y
+end
+
+function vec2:majorAxis()
+	return math.abs( self.x ) > math.abs( self.y ) and 0 or 1
 end
 
 function vec2:normal()
@@ -369,7 +376,12 @@ function range( from, to, step )
 	return arr
 end
 
-local actors = {}
+actors = {}
+blocksToActors = {}
+
+function actorConveyorForce( actor, force )
+	actor.vel = actor.vel + force
+end
 
 function actorControlThrust( actor, thrust )
 	actor.thrust = thrust
@@ -416,6 +428,9 @@ function updateViewTransform()
 end
 
 function startGame()
+
+	fixupBlockData()
+
 	actors = {}
 
 	color_multiplied_r = 1
@@ -433,19 +448,19 @@ end
 
 actorConfigurations = {
 	player = {
-		dims = vec2:new( 30, 24 ),
+		dims = vec2:new( 7, 13 ),
 		maxThrust = 0.35,
 		drag = 0.175,
-		ulOffset = vec2:new( 16, 29 ),
+		ulOffset = vec2:new( 9, 15 ),
 		tileSizeX = 1,
 		tileSizeY = 1,
 		animations = {
 			idle_south = { speed = 0, frames = { 1 }},
-			run_south =  { speed = 0.2, frames = { 2, 3, 4, 3 }},
-			idle_north = { speed = 0, frames = { 5 }},
-			run_north =  { speed = 0.2, frames = { 6, 7, 8, 7 }},
-			idle_side = { speed = 0, frames = { 33 }},
-			run_side = { speed = 0.4, frames = range( 34, 34 + 7 ) },
+			run_south =  { speed = 0.4, frames = range( 2, 2 + 7 )},
+			idle_north = { speed = 0, frames = { 33 }},
+			run_north =  { speed = 0.4, frames = range( 34, 34 + 7 )},
+			idle_side = { speed = 0, frames = { 65 }},
+			run_side = { speed = 0.4, frames = range( 66, 66 + 7 ) },
 		},
 		amendAnimName = function( self, animName )
 			if math.abs( self.heading.x ) > math.abs( self.heading.y ) then return animName .. '_side' end
@@ -628,12 +643,14 @@ function drawActor( actor )
 
 	fillp( bitPatternForAlpha( actorOpacityForDither( actor ) ))
 
+	local flipX = actor.heading:majorAxis() == 0 and actor.heading.x > 0
+
 	spr( sprite, 
 		round( actor.pos.x - actor.config.ulOffset.x ), 
 		round( actor.pos.y - actor.config.ulOffset.y ), 
 		actor.config.tileSizeX, 
 		actor.config.tileSizeY, 
-		actor.heading.x > 0,
+		flipX,
 		false,
 		actorColor( actor ),
 		actorAdditiveColor( actor )
@@ -808,6 +825,19 @@ function updateActor( actor )
 	updateAnimation( actor )
 end
 
+function updateActorsOnBlocks()
+	for _, actor in ipairs( actors ) do
+		local actorTileX = worldToTile( actor.pos.x )
+		local actorTileY = worldToTile( actor.pos.y )
+
+		local tileIndex = worldTilePosToIndex( actorTileX, actorTileY )
+
+		if blocksToActors[ tileIndex ] == nil then blocksToActors[ tileIndex ] = {} end
+
+		table.insert( blocksToActors[ tileIndex ], actor )
+	end
+end
+
 function updateActors()
 
 	for _, actor in ipairs( actors ) do
@@ -821,10 +851,150 @@ function updateActors()
 	player.pos.y = clamp( player.pos.y, 16, WORLD_SIZE_PIXELS - 16 )
 end
 
+blockAnimSets = {
+	conveyorNorthWithLip = { 
+		speed = 2,
+		frames = range( 261, 264 )
+	},
+	conveyorNorth = { 
+		speed = 2,
+		frames = range( 265, 268 )
+	}
+}
+
+function worldTilePosToIndex( x, y )
+	return x + y * WORLD_SIZE_TILES
+end
+
+function forEachActorOnBlock( x, y, callback )
+	local tileIndex = worldTilePosToIndex( x, y )
+	local actors = blocksToActors[ tileIndex ]
+	if actors then
+		for _, actor in ipairs( actors ) do
+			if not actor.config.inert then
+				callback( actor )
+			end
+		end
+	end
+end
+
+CONVEYOR_FORCE = 0.105
+
+function blockTickConveyor( direction, x, y )
+	-- trace( 'tick ' .. ticks )
+	forEachActorOnBlock( x, y, function( actor )
+		actorConveyorForce( actor, direction * CONVEYOR_FORCE )
+	end)
+end
+
+function withBlockTypeAt( x, y, callback )
+	local blockType = blockTypeAt( x, y )
+	if blockType ~= nil then
+		callback( blockType )
+	end
+end
+
+blockTypes = {
+	[261] = {
+		conveyor = true,
+		onPlaced = function( x, y )
+			withBlockTypeAt( x, y + 1, function( blockType ) 
+				if blockType.conveyor ~= nil then
+					mset( x, y, 265 )
+				end
+			end)
+		end,
+		tick = function( x, y )
+			blockTickConveyor( vec2:new( 0, -1 ), x, y )
+		end
+	},
+	[265] = {
+		conveyor = true,
+		tick = function( x, y )
+			blockTickConveyor( vec2:new( 0, -1 ), x, y )
+		end
+	},
+}
+
+function blockTypeAt( x, y )
+	return blockTypes[ mget( x, y ) ]
+end
+
+function forEachBlock( callback )
+	for y = 0, WORLD_SIZE_TILES - 1 do
+		for x = 0, WORLD_SIZE_TILES - 1 do
+			local tileSpriteIndex = mget( x, y )
+			if tileSpriteIndex >= MIN_ACTIVE_BLOCK_INDEX then
+				local blockType = blockTypes[ tileSpriteIndex ]
+				if blockType ~= nil then
+					callback( x, y, blockType, tileSpriteIndex )
+				end
+			end
+		end
+	end
+end
+
+function fixupBlockData()
+	for _, animSet in pairs( blockAnimSets ) do
+		local animSetBase = animSet.frames[ 1 ]
+
+		for _, block in pairs( animSet.frames ) do
+			if blockTypes[ block ] == nil then
+				blockTypes[ block ] = {}
+			end
+			
+			if block ~= animSetBase then
+				blockTypes[ block ].baseType = animSetBase
+			end
+			blockTypes[ block ].animSet = animSet
+		end
+	end
+
+	forEachBlock( function( x, y, block )
+		if block.onPlaced then block.onPlaced( x, y ) end
+	end )
+end
+
+
+function updateBlock( x, y, blockType, blockTypeIndex )
+	if blockType.baseType and blockType.baseType ~= blockTypeIndex then
+		blockTypeIndex = blockType.baseType
+		blockType = blockTypes[ blockTypeIndex ]
+	end
+
+	assert( blockType )
+
+	if blockType.tick then
+		blockType.tick( x, y )
+	end
+	
+	local animSet = blockType.animSet
+	if animSet then
+		local changeSpeed = animSet.speed or 4
+		local frame = math.floor( ticks // changeSpeed )
+
+		local block = animSet.frames[ 1 + frame % #animSet.frames ]
+
+		mset( x, y, block )
+	end
+end
+
+function updateBlocks()
+
+	forEachBlock( function( x, y, block, blockTypeIndex )
+		updateBlock( x, y, block, blockTypeIndex )
+	end )
+end
+
 function updateActive()
+
+	blocksToActors = {}
+
 	updateInput( player )
 
 	updateActors()
+	updateActorsOnBlocks()
+	updateBlocks()
 
 	ticks = ticks + 1
 end
