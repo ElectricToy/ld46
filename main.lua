@@ -232,6 +232,10 @@ function randInRange( a, b )
 	return lerp( a, b, math.random() )
 end
 
+function randInt( a, b )
+	return math.floor( randInRange( a, b ))
+end
+
 function randomElement( tab )
 	local n = #tab
 	if n == 0 then return nil end
@@ -392,6 +396,67 @@ function actorControlThrust( actor, thrust )
 	end
 end
 
+ARM_LENGTH = 8
+ARM_OFFSET = vec2:new( 0, -4 )
+
+function blockToPickup( byActor )
+	local pickupPoint = byActor.pos + ARM_OFFSET + byActor.heading * ARM_LENGTH
+
+	local pickupTileX = worldToTile( pickupPoint.x )
+	local pickupTileY = worldToTile( pickupPoint.y )
+
+	if  pickupTileX < 0 or pickupTileX >= WORLD_SIZE_TILES or
+		pickupTileY < 0 or pickupTileY >= WORLD_SIZE_TILES then
+			return nil
+	end
+
+	local blockType = blockTypeAt( pickupTileX, pickupTileY )
+	if blockType == nil or blockType.stationary then return nil end
+
+	return pickupTileX, pickupTileY
+end
+
+function randomGroundBlockIndex()
+	return randInt( 256, 256+5 )
+end
+
+function blockOnNeighborChanged( x, y, changedX, changedY )
+	withBlockTypeAt( x, y, function( blockType, blockTypeIndex )
+		withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
+			if baseBlockType ~= nil and baseBlockType.onPlaced ~= nil then
+				-- trace( x .. ' ' .. y .. ' ' .. baseBlockTypeIndex )
+				baseBlockType.onPlaced( x, y, baseBlockType, blockTypeIndex ) 
+			end
+		end)
+	end)
+end
+
+function onBlockChangeNear( x, y )
+	blockOnNeighborChanged( x, y - 1, x, y )
+end
+
+function setBlockType( x, y, blockTypeIndex )
+	mset( x, y, blockTypeIndex )
+	onBlockChangeNear( x, y )
+end
+
+function clearBlock( x, y )
+	setBlockType( x, y, randomGroundBlockIndex() )
+end
+
+function onButton1()
+	local blockX, blockY = blockToPickup( player )
+	if blockX ~= nil then
+		-- place in inventory
+		-- TODO player
+		clearBlock( blockX, blockY )
+	end
+end
+
+function onButton2()
+	trace( 'button2' )
+end
+
 function updateInput( actor )
 
 	local thrust = vec2:new()
@@ -415,6 +480,13 @@ function updateInput( actor )
 	thrust = thrust:normal() * actor.config.maxThrust
 
 	actorControlThrust( actor, thrust )
+
+	if btnp( 4 ) then
+		onButton1()
+	end
+	if btnp( 5 ) then
+		onButton2()
+	end
 end
 
 function updateViewTransform()
@@ -888,28 +960,28 @@ function conveyorTick( x, y, blockType, blockTypeIndex )
 end
 
 function withBlockTypeAt( x, y, callback )
-	local blockType = blockTypeAt( x, y )
-	if blockType ~= nil then
-		callback( blockType )
+	local blockType, blockTypeIndex = blockTypeAt( x, y )
+	callback( blockType, blockTypeIndex )
+end
+
+function blockAbuttingSouthVersion( blockTypeIndex, southIsConveyor )
+	local baseType = baseBlockTypeIndex( blockTypeIndex )
+
+	if southIsConveyor then
+		return baseType + 4
+	else
+		return baseType
 	end
 end
 
-function blockAbuttingSouthVersion( blockTypeIndex )
-	if  (blockTypeIndex >= 261 and blockTypeIndex <= 264) and
-		(blockTypeIndex >= 293 and blockTypeIndex <= 296) and
-		(blockTypeIndex >= 325 and blockTypeIndex <= 328) and
-		(blockTypeIndex >= 357 and blockTypeIndex <= 360) then
-			return blockTypeIndex
-	else
-		return blockTypeIndex + 4
-	end
+function blockPickupVersion( blockTypeIndex )
+	return blockTypeForIndex( blockTypeIndex )
 end
 
 function conveyorOnPlaced( x, y, blockType, blockTypeIndex )
-	withBlockTypeAt( x, y + 1, function( southernBlockType ) 
-		if southernBlockType.conveyor ~= nil then
-			mset( x, y, blockAbuttingSouthVersion( blockTypeIndex ) )
-		end
+	withBlockTypeAt( x, y + 1, function( southernBlockType, southernBlockTypeIndex ) 
+		local desiredIndex = blockAbuttingSouthVersion( blockTypeIndex, southernBlockType and southernBlockType.conveyor ~= nil )
+		mset( x, y, desiredIndex )
 	end)
 end
 
@@ -920,9 +992,7 @@ blockTypes = {
 		tick = conveyorTick,
 	},
 	[261+4] = {
-		conveyor = { direction = vec2:new( 0, -1 )},
-		onPlaced = conveyorOnPlaced,
-		tick = conveyorTick,
+		baseType = 261,
 	},
 	[261+32] = {
 		conveyor = { direction = vec2:new( 1, 0 )},
@@ -930,9 +1000,7 @@ blockTypes = {
 		tick = conveyorTick,
 	},
 	[261+32+4] = {
-		conveyor = { direction = vec2:new( 1, 0 )},
-		onPlaced = conveyorOnPlaced,
-		tick = conveyorTick,
+		baseType = 261+32,
 	},
 	[261+32*2] = {
 		conveyor = { direction = vec2:new( 0, 1 )},
@@ -940,9 +1008,7 @@ blockTypes = {
 		tick = conveyorTick,
 	},
 	[261+32*2+4] = {
-		conveyor = { direction = vec2:new( 0, 1 )},
-		onPlaced = conveyorOnPlaced,
-		tick = conveyorTick,
+		baseType = 261+32*2,
 	},
 	[261+32*3] = {
 		conveyor = { direction = vec2:new( -1, 0 )},
@@ -950,14 +1016,35 @@ blockTypes = {
 		tick = conveyorTick,
 	},
 	[261+32*3+4] = {
-		conveyor = { direction = vec2:new( -1, 0 )},
-		onPlaced = conveyorOnPlaced,
-		tick = conveyorTick,
+		baseType = 261+32*3,
 	},
 }
 
-function blockTypeAt( x, y )
-	return blockTypes[ mget( x, y ) ]
+function baseBlockTypeIndex( blockTypeIndex )
+	local blockType = blockTypes[ blockTypeIndex ]
+	if blockType == nil then return blockTypeIndex end
+
+	if blockType.baseType and blockType.baseType ~= blockTypeIndex then
+		return baseBlockTypeIndex( blockType.baseType )
+	end
+	return blockTypeIndex
+end
+
+function withBaseBlockType( blockTypeIndex, callback )
+	local baseTypeIndex = baseBlockTypeIndex( blockTypeIndex )
+	local baseType = blockTypes[ baseTypeIndex ]
+	if baseType ~= nil then
+		callback( baseType, baseTypeIndex )
+	end
+end
+
+function blockTypeForIndex( blockTypeIndex )
+	return blockTypes[ blockTypeIndex ]
+end
+
+function blockTypeAt( x, y ) -- returns the 'base' block type but the actual index
+	local blockTypeIndex = mget( x, y )
+	return blockTypeForIndex( blockTypeIndex ), blockTypeIndex
 end
 
 function forEachBlock( callback )
@@ -965,7 +1052,7 @@ function forEachBlock( callback )
 		for x = 0, WORLD_SIZE_TILES - 1 do
 			local tileSpriteIndex = mget( x, y )
 			if tileSpriteIndex >= MIN_ACTIVE_BLOCK_INDEX then
-				local blockType = blockTypes[ tileSpriteIndex ]
+				local blockType = blockTypeForIndex( tileSpriteIndex )
 				if blockType ~= nil then
 					callback( x, y, blockType, tileSpriteIndex )
 				end
@@ -991,38 +1078,38 @@ function fixupBlockData()
 	end
 
 	forEachBlock( function( x, y, blockType, blockTypeIndex )
-		if blockType.onPlaced then blockType.onPlaced( x, y, blockType, blockTypeIndex ) end
+		withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
+			if baseBlockType.onPlaced ~= nil then 
+				baseBlockType.onPlaced( x, y, blockType, blockTypeIndex ) 
+			end
+		end)
 	end )
 end
 
 
 function updateBlock( x, y, blockType, blockTypeIndex )
-	if blockType.baseType and blockType.baseType ~= blockTypeIndex then
-		blockTypeIndex = blockType.baseType
-		blockType = blockTypes[ blockTypeIndex ]
-	end
-
 	assert( blockType )
 
-	if blockType.tick then
-		blockType.tick( x, y, blockType, blockTypeIndex )
-	end
-	
-	local animSet = blockType.animSet
-	if animSet then
-		local changeSpeed = animSet.speed or 4
-		local frame = math.floor( ticks // changeSpeed )
+	withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
+		if baseBlockType.tick then
+			baseBlockType.tick( x, y, baseBlockType, baseBlockTypeIndex )
+		end
+		
+		local animSet = blockType.animSet
+		if animSet then
+			local changeSpeed = animSet.speed or 4
+			local frame = math.floor( ticks // changeSpeed )
 
-		local block = animSet.frames[ 1 + frame % #animSet.frames ]
+			local block = animSet.frames[ 1 + frame % #animSet.frames ]
 
-		mset( x, y, block )
-	end
+			mset( x, y, block )
+		end
+	end)
 end
 
 function updateBlocks()
-
-	forEachBlock( function( x, y, block, blockTypeIndex )
-		updateBlock( x, y, block, blockTypeIndex )
+	forEachBlock( function( x, y, blockType, blockTypeIndex )
+		updateBlock( x, y, blockType, blockTypeIndex )
 	end )
 end
 
