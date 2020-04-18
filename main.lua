@@ -30,7 +30,7 @@ saturation_ = 1
 color_multiplied_r = 1
 color_multiplied_g = 1
 color_multiplied_b = 1
-bevel_ = 0
+bevel_ = 0.75
 
 local barrel_smoothed = barrel_
 local bloom_intensity_smoothed = bloom_intensity_
@@ -70,7 +70,7 @@ function updateScreenParams()
 	noise( noise_smoothed, rescan_smoothed )
 	saturation( saturation_smoothed )
 	color_multiplied( color_multiplied_r_smoothed, color_multiplied_g_smoothed, color_multiplied_b_smoothed )
-	bevel( bevel_smoothed, 0 )
+	bevel( bevel_smoothed, 1 )
 end
 
 updateScreenParams()
@@ -357,7 +357,14 @@ end
 
 -- UPDATE
 
+local s = 0
+local frames = { 2, 3, 4, 3 }
+
 function update()
+
+	s = s + 0.15
+
+	updateScreenParams()
 
 	realTicks = realTicks + 1
 end
@@ -366,7 +373,9 @@ end
 -- DRAW
 
 function draw()
-	cls( 0xff220044 )
+	cls( 0xff596978 )
+
+	spr( frames[ math.floor( s ) % #frames + 1 ], 80, 60 )
 
 	camera( 0, 0 )
 	drawDebug()
