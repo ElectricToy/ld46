@@ -16,7 +16,7 @@ TILES_X = SPRITE_SHEET_PIXELS_X // PIXELS_PER_TILE
 
 sprite_size( PIXELS_PER_TILE )
 
-WORLD_SIZE_PIXELS = 128 * PIXELS_PER_TILE
+WORLD_SIZE_PIXELS = 64 * PIXELS_PER_TILE
 
 barrel_ = 0.2
 bloom_intensity_ = 0
@@ -371,14 +371,46 @@ end
 
 local actors = {}
 
+function actorControlThrust( actor, thrust )
+	actor.thrust = thrust
+	actor.vel = actor.vel + thrust
+
+	if thrust:lengthSquared() > 0 then
+		actor.heading = thrust:normal()
+	end
+end
+
+function updateInput( actor )
+
+	local thrust = vec2:new()
+
+	if btn( 0 ) then
+		thrust.x = thrust.x - 1
+	end
+
+	if btn( 1 ) then
+		thrust.x = thrust.x + 1
+	end
+
+	if btn( 2 ) then 
+		thrust.y = thrust.y - 1
+	end
+
+	if btn( 3 ) then
+		thrust.y = thrust.y + 1
+	end
+
+	thrust = thrust:normal() * actor.config.maxThrust
+
+	actorControlThrust( actor, thrust )
+end
+
 function updateViewTransform()
 	local viewOffset = vec2:new( screen_wid() / 2, screen_hgt() / 2 )
 
 	viewOffset.y = screen_hgt() / 2
 
 	local viewPoint = ( player.pos - vec2:new( 0, 10 ) ) - viewOffset
-
-	trace( 'view: ' .. viewPoint:__tostring() )
 
 	setWorldView( viewPoint.x, viewPoint.y )
 end
@@ -394,7 +426,7 @@ function startGame()
 	color_multiplied_b_smoothed = 0
 
 
-	player = createActor( 'player', 8 * PIXELS_PER_TILE, 44 * PIXELS_PER_TILE )
+	player = createActor( 'player', 2 * PIXELS_PER_TILE, 3 * PIXELS_PER_TILE )
 
 	updateViewTransform()
 end
@@ -402,24 +434,24 @@ end
 actorConfigurations = {
 	player = {
 		dims = vec2:new( 30, 24 ),
+		maxThrust = 0.35,
+		drag = 0.175,
 		ulOffset = vec2:new( 16, 29 ),
-		tileSizeX = 2,
-		tileSizeY = 2,
-		inert = true,
+		tileSizeX = 1,
+		tileSizeY = 1,
 		animations = {
-			south = {
-				idle = { speed = 0, frames = { 1 }},
-				run =  { speed = 0.2, frames = { 2, 3, 4, 3 }}
-			},
-			north = {
-				idle = { speed = 0, frames = { 5 }},
-				run =  { speed = 0.2, frames = { 6, 7, 8, 7 }}
-			},
-			side = {
-				idle = { speed = 0, frames = { 33 }},
-				run = { speed = 0.2, frames = range( 34, 34 + 7 ) }
-			},
-		}
+			idle_south = { speed = 0, frames = { 1 }},
+			run_south =  { speed = 0.2, frames = { 2, 3, 4, 3 }},
+			idle_north = { speed = 0, frames = { 5 }},
+			run_north =  { speed = 0.2, frames = { 6, 7, 8, 7 }},
+			idle_side = { speed = 0, frames = { 33 }},
+			run_side = { speed = 0.4, frames = range( 34, 34 + 7 ) },
+		},
+		amendAnimName = function( self, animName )
+			if math.abs( self.heading.x ) > math.abs( self.heading.y ) then return animName .. '_side' end
+
+			return animName .. '_' .. ( self.heading.y < 0 and 'north' or 'south' )
+		end,
 	}
 }
 function createActor( configKey, x, y )
@@ -432,6 +464,7 @@ function createActor( configKey, x, y )
 		pos = vec2:new( x, y ),
 		lastPos = vec2:new( x, y ),
 		vel = vec2:new( 0, 0 ),
+		thrust = vec2:new( 0, 0 ),
 		heading = vec2:new( -1, 0 ),
 		animFrame = 0,
 		lastFrame = 0,
@@ -484,10 +517,7 @@ function currentAnimation( actor )
 	
 	if animations == nil then return nil end
 
-	local anim = ( math.abs( speed( actor )) > 0.1 ) and 'run' or 'idle'
-	if anim == 'run' and animations.run == nil then
-		anim = 'idle'
-	end
+	local anim = ( math.abs( actor.thrust:length() ) > 0.1 ) and 'run' or 'idle'
 
 	if actor.config.amendAnimName ~= nil then
 		anim = actor.config.amendAnimName( actor, anim )
@@ -538,6 +568,27 @@ function actorAdditiveColor( actor )
 	return actor.additiveColor or 0x00000000
 end
 
+function updateAnimation( actor )
+
+	if actor.animPlaying ~= nil and not actor.animPlaying then return end
+
+	local animation = currentAnimation( actor )
+	if animation ~= nil then
+		local frameStep = animation.speed
+		if animation.velScalar ~= nil then
+			frameStep = animation.speed + animation.velScalar * speed( actor )
+		end
+		actorSetFrame( actor, actor.animFrame + frameStep )
+	end	
+
+	if animation ~= actor.lastAnimation then
+		actor.lastAnimation = animation
+		if not animation.keepFrame then
+			actor.animFrame = 0
+		end
+	end
+end
+
 function actorOccludesPlayer( actor )
 	if player.pos.y > actor.pos.y then return false end
 
@@ -582,7 +633,7 @@ function drawActor( actor )
 		round( actor.pos.y - actor.config.ulOffset.y ), 
 		actor.config.tileSizeX, 
 		actor.config.tileSizeY, 
-		actor.vel.x > 0,
+		actor.heading.x > 0,
 		false,
 		actorColor( actor ),
 		actorAdditiveColor( actor )
@@ -609,11 +660,178 @@ end
 
 -- UPDATE
 
-local s = 0
+function actorMayCollideWith( actor, other )
+	if actor.config.nonColliding then return false end
+	return true
+end
+
+function actorOnCollide( actor, other )
+
+	-- add to colliding actors if it's not there already
+	if actor.collidingActors[ other ] == nil then
+		actor.collidingActors[ other ] = true
+		if actor.config.onActorCollisionStart ~= nil then
+			actor.config.onActorCollisionStart( actor, other )
+		end
+	end
+
+	-- call the continual callback
+	if actor.config.onActorCollide ~= nil then
+		actor.config.onActorCollide( actor, other )
+	end
+end
+
+function actOnNotCollide( actor, other )
+	if actor.collidingActors[ other ] ~= nil then
+		actor.collidingActors[ other ] = nil
+		if actor.config.onActorCollisionEnd ~= nil then
+			actor.config.onActorCollisionEnd( actor, other )
+		end
+	end
+end
+
+function collideActorPair( actorA, actorB )
+	if not( actorMayCollideWith( actorA, actorB ) or actorMayCollideWith( actorB, actorA ) ) then
+		return 
+	end
+
+	local boundsA = actorBounds( actorA )
+	local boundsB = actorBounds( actorB )
+
+	-- trace( boundsA.left .. ' ' .. boundsA.right .. ' ' .. boundsB.left .. ' ' .. boundsB.right )
+
+	if rectsOverlap( boundsA, boundsB ) then
+		actorOnCollide( actorA, actorB )
+		actorOnCollide( actorB, actorA )
+	else
+		actOnNotCollide( actorA, actorB )
+		actOnNotCollide( actorB, actorA )
+	end
+end
+
+function collideActors()
+
+	for i, actor in ipairs( actors ) do
+		if actor ~= player then
+			if player.config.mayInitiateActorCollision or actor.config.mayInitiateActorCollision then
+				collideActorPair( player, actor )
+			end
+		end
+	end
+end
+
+function collideActorWithTile( actor, tileX, tileY )
+	local bounds = actorBounds( actor )
+
+	-- trace( actorFoot( actor ).x .. ' ' .. actorFoot( actor ).y .. ' ' .. bounds.left .. ' ' .. bounds.top .. ' ' .. bounds.right .. ' ' .. bounds.bottom )
+
+	local tileSprite = mget( tileX, tileY )
+
+	local tileCollides = fget( tileSprite, 1 ) ~= 0
+
+	if tileCollides then
+
+		local vel = effectiveVelocity( actor )
+
+		local colliding, normalX, normalY, hitAxis, adjustmentDistance = table.unpack( rect_collision_adjustment( 
+			bounds.left, bounds.top, bounds.right, bounds.bottom, 
+			tileX * PIXELS_PER_TILE, tileY * PIXELS_PER_TILE, ( tileX + 1 ) * PIXELS_PER_TILE, ( tileY + 1 ) * PIXELS_PER_TILE,
+			vel.x, vel.y ))
+
+		if colliding then
+			local adjustment = vec2:new( normalX * adjustmentDistance, normalY * adjustmentDistance )
+			actor.pos = actor.pos + adjustment
+			if( hitAxis == 0 ) then
+				actor.vel.x = 0
+			else
+				actor.vel.y = 0
+			end
+		end
+
+		return colliding
+	end
+	return false
+end
+
+function collideActorWithTerrain( actor )
+	if actor.config.nonColliding then return end
+
+	local bounds = actorBounds( actor )
+
+	local startX = worldToTile( bounds.left )
+	local endX = worldToTile( bounds.right )
+	local startY = worldToTile( bounds.top )
+	local endY = worldToTile( bounds.bottom )
+
+	local vel = effectiveVelocity( actor )
+
+	local stepX = signNoZero( vel.x )
+	local stepY = signNoZero( vel.y )
+
+	if stepX < 0 then
+		startX, endX = endX, startX
+	end
+
+	if stepY < 0 then
+		startY, endY = endY, startY
+	end
+
+	for y = startY, endY, stepY do
+		for x = startX, endX, stepX do
+			collided = collideActorWithTile( actor, x, y )
+			if collided then return true end
+		end
+	end
+
+	return false
+end
+
+function updateActor( actor )
+
+	if actor.config.inert == nil or not actor.config.inert then
+		
+		actor.lastPos:set( actor.pos.x, actor.pos.y )
+
+		if actor.drag == nil then actor.drag = actor.config.drag end
+
+		actor.vel = actor.vel - actor.vel * actor.drag
+		actor.pos = actor.pos + actor.vel
+
+		if actor.mayCollideWithTerrain then
+			for i = 1, 4 do
+				local collided = collideActorWithTerrain( actor )
+				if not collided then break end
+			end
+		end
+	end
+
+	updateAnimation( actor )
+end
+
+function updateActors()
+
+	for _, actor in ipairs( actors ) do
+		updateActor( actor )
+	end
+
+	collideActors()
+
+	-- clamp the player to the world
+	player.pos.x = clamp( player.pos.x, 16, WORLD_SIZE_PIXELS - 16 )
+	player.pos.y = clamp( player.pos.y, 16, WORLD_SIZE_PIXELS - 16 )
+end
+
+function updateActive()
+	updateInput( player )
+
+	updateActors()
+
+	ticks = ticks + 1
+end
 
 function update()
 
-	s = s + 0.15
+	updateActive()
 
 	updateScreenParams()
 
