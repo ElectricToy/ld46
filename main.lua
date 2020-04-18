@@ -852,22 +852,12 @@ function updateActors()
 end
 
 blockAnimSets = {
-	conveyorNorthWithLip = { 
-		speed = 2,
-		frames = range( 261, 264 )
-	},
-	conveyorNorth = { 
-		speed = 2,
-		frames = range( 265, 268 )
-	},
-	conveyorEastWithLip = { 
-		speed = 2,
-		frames = range( 293, 293+3 )
-	},
-	conveyorEast = { 
-		speed = 2,
-		frames = range( 297, 297+3 )
-	},
+	{ speed = 2, frames = range( 261, 264 ) },
+	{ speed = 2, frames = range( 265, 268 ) },
+	{ speed = 2, frames = range( 293, 293+3 ) },
+	{ speed = 2, frames = range( 297, 297+3 ) },
+	{ speed = 2, frames = range( 325, 325+3 ) },
+	{ speed = 2, frames = range( 329, 329+3 ) },
 }
 
 function worldTilePosToIndex( x, y )
@@ -904,8 +894,9 @@ end
 
 function blockAbuttingSouthVersion( blockTypeIndex )
 	if  (blockTypeIndex >= 261 and blockTypeIndex <= 264) and
-		(blockTypeIndex >= 293 and blockTypeIndex <= 297) then
-		return blockTypeIndex
+		(blockTypeIndex >= 293 and blockTypeIndex <= 296) and
+		(blockTypeIndex >= 325 and blockTypeIndex <= 328) then
+			return blockTypeIndex
 	else
 		return blockTypeIndex + 4
 	end
@@ -925,18 +916,28 @@ blockTypes = {
 		onPlaced = conveyorOnPlaced,
 		tick = conveyorTick,
 	},
-	[265] = {
+	[261+4] = {
 		conveyor = { direction = vec2:new( 0, -1 )},
 		onPlaced = conveyorOnPlaced,
 		tick = conveyorTick,
 	},
-	[293] = {
+	[261+32] = {
 		conveyor = { direction = vec2:new( 1, 0 )},
 		onPlaced = conveyorOnPlaced,
 		tick = conveyorTick,
 	},
-	[297] = {
+	[261+32+4] = {
 		conveyor = { direction = vec2:new( 1, 0 )},
+		onPlaced = conveyorOnPlaced,
+		tick = conveyorTick,
+	},
+	[261+32*2] = {
+		conveyor = { direction = vec2:new( 0, 1 )},
+		onPlaced = conveyorOnPlaced,
+		tick = conveyorTick,
+	},
+	[261+32*2+4] = {
+		conveyor = { direction = vec2:new( 0, 1 )},
 		onPlaced = conveyorOnPlaced,
 		tick = conveyorTick,
 	},
