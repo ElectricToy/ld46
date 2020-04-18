@@ -444,12 +444,39 @@ function clearBlock( x, y )
 	setBlockType( x, y, randomGroundBlockIndex() )
 end
 
+function createActorForBlockIndex( blockTypeIndex, x, y )
+	return withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
+		trace( 'create ' .. baseBlockTypeIndex )
+		if baseBlockType.actorConfigName ~= nil then
+			trace( 'creating ' .. baseBlockType.actorConfigName )
+			return createActor( baseBlockType.actorConfigName, x, y )
+		end
+	end)
+end
+
+function dropHeldItem()
+	player.heldItem.held = false	-- probably moot, but just in case
+	deleteActor( player.heldItem )
+	player.heldItem = nil
+end
+
 function onButton1()
-	local blockX, blockY = blockToPickup( player )
-	if blockX ~= nil then
-		-- place in inventory
-		-- TODO player
-		clearBlock( blockX, blockY )
+
+	if player.heldItem ~= nil then
+		dropHeldItem()
+	else
+		-- Pickup 
+		local blockX, blockY = blockToPickup( player )
+		if blockX ~= nil then
+			-- place in inventory
+			local blockIndex = mget( blockX, blockY )
+			player.heldItem = createActorForBlockIndex( blockIndex, player.pos.x, player.pos.y )
+			player.heldItem.held = true
+			player.heldItem.inert = true
+			player.heldItem.nonColliding = true
+
+			clearBlock( blockX, blockY )
+		end
 	end
 end
 
@@ -518,11 +545,22 @@ function startGame()
 	updateViewTransform()
 end
 
+GLOBAL_DRAG = 0.175
+
+function updateHeldItem( holder, item )
+	item.pos = holder.pos + vec2:new( 0, -14 - math.sin( ticks * 0.08 ) * 1 )
+end
+
+function updatePlayer( actor )
+	if player.heldItem then
+		updateHeldItem( player, player.heldItem )
+	end
+end
+
 actorConfigurations = {
 	player = {
 		dims = vec2:new( 7, 13 ),
 		maxThrust = 0.35,
-		drag = 0.175,
 		ulOffset = vec2:new( 9, 15 ),
 		tileSizeX = 1,
 		tileSizeY = 1,
@@ -539,8 +577,23 @@ actorConfigurations = {
 
 			return animName .. '_' .. ( self.heading.y < 0 and 'north' or 'south' )
 		end,
+		tick = updatePlayer,
+	},
+	conveyor = {
+		dims = vec2:new( 16, 16 ),
+		ulOffset = vec2:new( 8, 16 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 261 }},
+		},
 	}
 }
+
+function deleteActor( actor )
+	tableRemoveValue( actors, actor )
+end
+
 function createActor( configKey, x, y )
 	local config = actorConfigurations[ configKey ]
 	assert( config )
@@ -878,12 +931,14 @@ end
 function updateActor( actor )
 
 	if actor.config.inert == nil or not actor.config.inert then
+
+		if actor.config.tick ~= nil then
+			actor.config.tick( actor )
+		end
 		
 		actor.lastPos:set( actor.pos.x, actor.pos.y )
 
-		if actor.drag == nil then actor.drag = actor.config.drag end
-
-		actor.vel = actor.vel - actor.vel * actor.drag
+		actor.vel = actor.vel - actor.vel * GLOBAL_DRAG
 		actor.pos = actor.pos + actor.vel
 
 		if actor.mayCollideWithTerrain then
@@ -987,6 +1042,7 @@ end
 
 blockTypes = {
 	[261] = {
+		actorConfigName = 'conveyor',
 		conveyor = { direction = vec2:new( 0, -1 )},
 		onPlaced = conveyorOnPlaced,
 		tick = conveyorTick,
@@ -995,6 +1051,7 @@ blockTypes = {
 		baseType = 261,
 	},
 	[261+32] = {
+		actorConfigName = 'conveyor',
 		conveyor = { direction = vec2:new( 1, 0 )},
 		onPlaced = conveyorOnPlaced,
 		tick = conveyorTick,
@@ -1003,6 +1060,7 @@ blockTypes = {
 		baseType = 261+32,
 	},
 	[261+32*2] = {
+		actorConfigName = 'conveyor',
 		conveyor = { direction = vec2:new( 0, 1 )},
 		onPlaced = conveyorOnPlaced,
 		tick = conveyorTick,
@@ -1011,6 +1069,7 @@ blockTypes = {
 		baseType = 261+32*2,
 	},
 	[261+32*3] = {
+		actorConfigName = 'conveyor',
 		conveyor = { direction = vec2:new( -1, 0 )},
 		onPlaced = conveyorOnPlaced,
 		tick = conveyorTick,
@@ -1034,7 +1093,7 @@ function withBaseBlockType( blockTypeIndex, callback )
 	local baseTypeIndex = baseBlockTypeIndex( blockTypeIndex )
 	local baseType = blockTypes[ baseTypeIndex ]
 	if baseType ~= nil then
-		callback( baseType, baseTypeIndex )
+		return callback( baseType, baseTypeIndex )
 	end
 end
 
@@ -1042,7 +1101,7 @@ function blockTypeForIndex( blockTypeIndex )
 	return blockTypes[ blockTypeIndex ]
 end
 
-function blockTypeAt( x, y ) -- returns the 'base' block type but the actual index
+function blockTypeAt( x, y )
 	local blockTypeIndex = mget( x, y )
 	return blockTypeForIndex( blockTypeIndex ), blockTypeIndex
 end
