@@ -682,6 +682,8 @@ function startGame()
 
 	player = createActor( 'player', 2 * PIXELS_PER_TILE, 3 * PIXELS_PER_TILE )
 
+	robot = createActor( 'robot', 6 * PIXELS_PER_TILE, 3 * PIXELS_PER_TILE )
+
 	updateViewTransform()
 end
 
@@ -720,6 +722,15 @@ actorConfigurations = {
 			return animName .. '_' .. ( self.heading.y < 0 and 'north' or 'south' )
 		end,
 		tick = updatePlayer,
+	},
+	robot = {
+		dims = vec2:new( 24, 24 ),
+		ulOffset = vec2:new( 18, 29 ),
+		tileSizeX = 2,
+		tileSizeY = 2,
+		animations = {
+			idle = { speed = 0.1, frames = { 10, 12, 14 }},
+		},
 	},
 	conveyor = {
 		mayBePickedUp = true,
