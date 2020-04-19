@@ -503,6 +503,8 @@ function tryPlaceAsBlock( item, direction, position )
 
 		setBlockType( placementX, placementY, blockTypeForHeldItem )
 
+		deleteActor( item )
+
 		return true
 	else
 		return false
@@ -526,7 +528,6 @@ function tryDropHeldItem( forceAsBlock, forceAsItem )
 		return
 	end
 
-	deleteActor( player.heldItem )
 	player.heldItem = nil
 end
 
@@ -561,13 +562,19 @@ function tryPickupActor( byActor )
 
 	-- look for actors near the pick area
 	local point = pickupPoint( byActor )
-	local pickupActor = findPickupActorNear( byAcor, point.x, point.y, 16 )
-	if pickupActor == nil then return nil end
+	local pickupActor = findPickupActorNear( byAcor, point.x, point.y, 8 )
+	if pickupActor == byActor or pickupActor == nil then return nil end
+
+	pickupActor.held = true
+	pickupActor.inert = true
+	pickupActor.vel = vec2:new( 0, 0)
+	pickupActor.lastPos = vec2:new( x, y )
+	pickupActor.vel = vec2:new( 0, 0 )
+	pickupActor.thrust = vec2:new( 0, 0 )
+	pickupActor.heading = vec2:new( -1, 0 )
+	pickupActor.nonColliding = true
 
 	byActor.heldItem = pickupActor
-	byActor.heldItem.held = true
-	byActor.heldItem.inert = true
-	byActor.heldItem.nonColliding = true
 	return pickupActor
 end
 
@@ -707,6 +714,7 @@ actorConfigurations = {
 	},
 	conveyor = {
 		mayBePickedUp = true,
+		convertToBlockWhenPossible = true,
 		blockPlacementType = { 261, 261+32, 261+32*2, 261+32*3 } ,
 		dims = vec2:new( 16, 16 ),
 		ulOffset = vec2:new( 8, 16 ),
@@ -1068,7 +1076,7 @@ end
 
 function updateActor( actor )
 
-	if actor.config.inert == nil or not actor.config.inert then
+	if not actor.inert and ( actor.config.inert == nil or not actor.config.inert ) then
 
 		if actor.config.tick ~= nil then
 			actor.config.tick( actor )
@@ -1084,6 +1092,10 @@ function updateActor( actor )
 				local collided = collideActorWithTerrain( actor )
 				if not collided then break end
 			end
+		end
+
+		if actor.config.convertToBlockWhenPossible then
+			tryPlaceAsBlock( actor, effectiveVelocity( actor ):cardinalDirection(), actor.pos )
 		end
 	end
 
