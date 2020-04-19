@@ -146,7 +146,6 @@ function vec2:lengthSquared()
   return self.x * self.x + self.y * self.y
 end
 
-
 function vec2:dist(v)
   local dx = self.x - v.x
   local dy = self.y - v.y
@@ -160,6 +159,22 @@ end
 
 function vec2:majorAxis()
 	return math.abs( self.x ) > math.abs( self.y ) and 0 or 1
+end
+
+function vec2:snappedToMajorAxis()
+	if self:majorAxis() == 0 then
+		return vec2:new( signNoZero( self.x ), 0 )
+	else
+		return vec2:new( signNoZero( self.y ), 0 )
+	end
+end
+
+function vec2:cardinalDirection() -- 0 = north, 1 = east...
+	if self:majorAxis() == 0 then
+		return self.x >= 0 and 1 or 3
+	else
+		return self.y >= 0 and 2 or 0
+	end
 end
 
 function vec2:normal()
@@ -383,6 +398,10 @@ end
 actors = {}
 blocksToActors = {}
 
+function actorCenter( actor )
+	return actor.pos - vec2:new( 0, actor.config.dims.y * 0.5 )
+end
+
 function actorConveyorForce( actor, force )
 	actor.vel = actor.vel + force
 end
@@ -397,18 +416,29 @@ function actorControlThrust( actor, thrust )
 end
 
 ARM_LENGTH = 8
-ARM_OFFSET = vec2:new( 0, -4 )
+ARM_OFFSET = vec2:new( 0, -2 )
 
-function blockToPickup( byActor )
-	local pickupPoint = byActor.pos + ARM_OFFSET + byActor.heading * ARM_LENGTH
+function pickupPoint( byActor )
+	return byActor.pos + ARM_OFFSET + byActor.heading * ARM_LENGTH
+end
 
-	local pickupTileX = worldToTile( pickupPoint.x )
-	local pickupTileY = worldToTile( pickupPoint.y )
+function blockInteractionTile( byActor )
+	local point = pickupPoint( byActor )
+
+	local pickupTileX = worldToTile( point.x )
+	local pickupTileY = worldToTile( point.y )
 
 	if  pickupTileX < 0 or pickupTileX >= WORLD_SIZE_TILES or
 		pickupTileY < 0 or pickupTileY >= WORLD_SIZE_TILES then
 			return nil
 	end
+
+	return pickupTileX, pickupTileY
+end
+
+function blockToPickup( byActor )
+
+	local pickupTileX, pickupTileY = blockInteractionTile( byActor )
 
 	local blockType = blockTypeAt( pickupTileX, pickupTileY )
 	if blockType == nil or blockType.stationary then return nil end
@@ -432,6 +462,7 @@ function blockOnNeighborChanged( x, y, changedX, changedY )
 end
 
 function onBlockChangeNear( x, y )
+	blockOnNeighborChanged( x, y, x, y )
 	blockOnNeighborChanged( x, y - 1, x, y )
 end
 
@@ -446,42 +477,137 @@ end
 
 function createActorForBlockIndex( blockTypeIndex, x, y )
 	return withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
-		trace( 'create ' .. baseBlockTypeIndex )
 		if baseBlockType.actorConfigName ~= nil then
-			trace( 'creating ' .. baseBlockType.actorConfigName )
+			-- trace( 'creating ' .. baseBlockType.actorConfigName )
 			return createActor( baseBlockType.actorConfigName, x, y )
 		end
 	end)
 end
 
-function dropHeldItem()
-	player.heldItem.held = false	-- probably moot, but just in case
+function mayPlaceBlockOnBlock( x, y )
+	local blockType, blockTypeIndex = blockTypeAt( x, y )
+	if blockType == nil then return false end
+
+	return blockType.mayBePlacedUpon or false
+end
+
+function tryPlaceAsBlock( item, direction, position )
+	local blockTypeForHeldItem = actorPlacementBlock( item, direction )
+	if blockTypeForHeldItem ~= nil then 
+
+		-- clear block placement area?
+		local placementPos = position or actorCenter( item )
+		local placementX = worldToTile( placementPos.x )
+		local placementY = worldToTile( placementPos.y )
+		if not mayPlaceBlockOnBlock( placementX, placementY ) then return end
+
+		setBlockType( placementX, placementY, blockTypeForHeldItem )
+
+		return true
+	else
+		return false
+	end
+end
+
+function tryDropHeldItem( forceAsBlock, forceAsItem )
+	if not player.heldItem then return end
+
+	-- placeable as block?
+
+	if not forceAsBlock and 
+	   (forceAsItem or 
+	   		not tryPlaceAsBlock( player.heldItem, player.heading:cardinalDirection(), player.pos )) then
+
+		-- placeable as item?
+		player.heldItem.held = false	-- probably moot, but just in case
+		player.heldItem.inert = false
+		player.heldItem.nonColliding = false
+		player.heldItem = nil
+		return
+	end
+
 	deleteActor( player.heldItem )
 	player.heldItem = nil
+end
+
+function forEachActorNear( x, y, radius, callback )
+	local pos = vec2:new( x, y )
+	local rSquared = radius * radius
+	for _, actor in ipairs( actors ) do
+		local distSquared = ( actor.pos - pos ):lengthSquared()
+		if distSquared <= rSquared then
+			callback( actor, distSquared )
+		end
+	end
+end
+
+function findPickupActorNear( forActor, x, y, radius )
+	local nearestActor = nil
+	local nearestDistSquared = nil
+	forEachActorNear( x, y, radius, function( actor, distSquared )
+		if not actor.config.mayBePickedUp or actor == forActor then return end
+		
+		if nearestDistSquared == nil or distSquared < nearestDistSquared then
+			nearestDistSquared = distSquared
+			nearestActor = actor
+		end
+	end)
+
+	return nearestActor
+end
+
+function tryPickupActor( byActor )
+	if byActor.heldItem ~= nil then return nil end
+
+	-- look for actors near the pick area
+	local point = pickupPoint( byActor )
+	local pickupActor = findPickupActorNear( byAcor, point.x, point.y, 16 )
+	if pickupActor == nil then return nil end
+
+	byActor.heldItem = pickupActor
+	byActor.heldItem.held = true
+	byActor.heldItem.inert = true
+	byActor.heldItem.nonColliding = true
+	return pickupActor
+end
+
+function tryPickupBlock( byActor )
+	if byActor.heldItem ~= nil then return nil end
+
+	local blockX, blockY = blockToPickup( byActor )
+	if blockX ~= nil then
+		-- place in inventory
+		local blockIndex = mget( blockX, blockY )
+		byActor.heldItem = createActorForBlockIndex( blockIndex, byActor.pos.x, byActor.pos.y )
+
+		if byActor.heldItem ~= nil then
+			byActor.heldItem.held = true
+			byActor.heldItem.inert = true
+			byActor.heldItem.nonColliding = true
+
+			clearBlock( blockX, blockY )
+			return true
+		end
+	end
+
+	return false
 end
 
 function onButton1()
 
 	if player.heldItem ~= nil then
-		dropHeldItem()
+		tryDropHeldItem()
 	else
-		-- Pickup 
-		local blockX, blockY = blockToPickup( player )
-		if blockX ~= nil then
-			-- place in inventory
-			local blockIndex = mget( blockX, blockY )
-			player.heldItem = createActorForBlockIndex( blockIndex, player.pos.x, player.pos.y )
-			player.heldItem.held = true
-			player.heldItem.inert = true
-			player.heldItem.nonColliding = true
+		-- Pickup
 
-			clearBlock( blockX, blockY )
+		if tryPickupActor( player ) == nil then
+			tryPickupBlock( player )
 		end
 	end
 end
 
 function onButton2()
-	trace( 'button2' )
+	tryDropHeldItem( false, true ) -- forcing drop
 end
 
 function updateInput( actor )
@@ -573,13 +699,15 @@ actorConfigurations = {
 			run_side = { speed = 0.4, frames = range( 66, 66 + 7 ) },
 		},
 		amendAnimName = function( self, animName )
-			if math.abs( self.heading.x ) > math.abs( self.heading.y ) then return animName .. '_side' end
+			if self.heading:majorAxis() == 0 then return animName .. '_side' end
 
 			return animName .. '_' .. ( self.heading.y < 0 and 'north' or 'south' )
 		end,
 		tick = updatePlayer,
 	},
 	conveyor = {
+		mayBePickedUp = true,
+		blockPlacementType = { 261, 261+32, 261+32*2, 261+32*3 } ,
 		dims = vec2:new( 16, 16 ),
 		ulOffset = vec2:new( 8, 16 ),
 		tileSizeX = 1,
@@ -623,6 +751,16 @@ end
 
 function speed( actor )
 	return actor.vel:length()
+end
+
+function actorPlacementBlock( actor, placementDirectionCardinal )
+	if type( actor.config.blockPlacementType ) == 'number' then
+		return actor.config.blockPlacementType
+	elseif actor.config.blockPlacementType == nil then
+		return nil
+	else
+		return actor.config.blockPlacementType[ placementDirectionCardinal + 1 ]
+	end
 end
 
 function onFrameChanged( actor )
@@ -954,6 +1092,8 @@ end
 
 function updateActorsOnBlocks()
 	for _, actor in ipairs( actors ) do
+		-- TODO check corners and pick what I'm *most* on
+
 		local actorTileX = worldToTile( actor.pos.x )
 		local actorTileY = worldToTile( actor.pos.y )
 
@@ -1016,7 +1156,7 @@ end
 
 function withBlockTypeAt( x, y, callback )
 	local blockType, blockTypeIndex = blockTypeAt( x, y )
-	callback( blockType, blockTypeIndex )
+	return callback( blockType, blockTypeIndex )
 end
 
 function blockAbuttingSouthVersion( blockTypeIndex, southIsConveyor )
@@ -1034,13 +1174,31 @@ function blockPickupVersion( blockTypeIndex )
 end
 
 function conveyorOnPlaced( x, y, blockType, blockTypeIndex )
-	withBlockTypeAt( x, y + 1, function( southernBlockType, southernBlockTypeIndex ) 
-		local desiredIndex = blockAbuttingSouthVersion( blockTypeIndex, southernBlockType and southernBlockType.conveyor ~= nil )
-		mset( x, y, desiredIndex )
+	withBlockTypeAt( x, y + 1, function( southernBlockType, southernBlockTypeIndex )
+		withBaseBlockType( southernBlockTypeIndex, function( southernBlockTypeBase, southernBaseBlockTypeIndex )
+			local desiredIndex = blockAbuttingSouthVersion( blockTypeIndex, southernBlockTypeBase and southernBlockTypeBase.conveyor ~= nil )
+			-- trace( 'cp: ' .. x .. ' ' .. y .. ' ' .. blockTypeIndex .. ' ' .. southernBaseBlockTypeIndex .. ' ' .. desiredIndex )
+			mset( x, y, desiredIndex )
+		end)
 	end)
 end
 
 blockTypes = {
+	[256] = {
+		mayBePlacedUpon = true,
+	},
+	[257] = {
+		mayBePlacedUpon = true,
+	},
+	[258] = {
+		mayBePlacedUpon = true,
+	},
+	[259] = {
+		mayBePlacedUpon = true,
+	},
+	[260] = {
+		mayBePlacedUpon = true,
+	},
 	[261] = {
 		actorConfigName = 'conveyor',
 		conveyor = { direction = vec2:new( 0, -1 )},
