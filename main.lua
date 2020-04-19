@@ -509,6 +509,8 @@ function tryPlaceAsBlock( item, direction, position )
 
 		deleteActor( item )
 
+		createActor( 'placement_poof', placementX * PIXELS_PER_TILE, placementY * PIXELS_PER_TILE )
+
 		return true
 	else
 		return false
@@ -732,6 +734,24 @@ actorConfigurations = {
 		tileSizeY = 2,
 		animations = {
 			idle = { speed = 0.1, frames = { 10, 12, 14 }},
+		},
+	},
+	placement_poof = {
+		inert = true,
+		nonColliding = true,
+		ulOffset = vec2:new( 16, 0 ),
+		tileSizeX = 3,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0.25, frames = {					
+				224, 224+3*2, 224+3*3, 224+3*4, 224+3*5, 224+3*6, 224+3*7, 224+3*8,
+				{ 	
+					frame = 224+3*8, 
+					event = function( actor )
+						deleteActor( actor )
+					end 
+				}
+			} },
 		},
 	},
 	conveyor = {
