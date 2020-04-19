@@ -526,6 +526,7 @@ function tryDropHeldItem( forceAsBlock, forceAsItem )
 
 		-- placeable as item?
 		player.heldItem.held = false	-- probably moot, but just in case
+		player.heldItem.ulOffset = nil
 		player.heldItem.inert = false
 		player.heldItem.nonColliding = false
 		player.heldItem = nil
@@ -565,6 +566,7 @@ function makeHeld( item )
 	item.held = true
 	item.inert = true
 	item.nonColliding = true
+	item.ulOffset = item.config.ulOffset + vec2:new( 0, 16 )
 	item.vel = vec2:new( 0, 0)
 	item.lastPos = vec2:new( x, y )
 	item.vel = vec2:new( 0, 0 )
@@ -591,11 +593,15 @@ function tryPickupBlock( byActor )
 	local blockX, blockY = blockToPickup( byActor )
 	if blockX ~= nil then
 		-- place in inventory
+		local creationPos = vec2:new( blockX, blockY ) * PIXELS_PER_TILE
+
 		local blockIndex = mget( blockX, blockY )
-		byActor.heldItem = createActorForBlockIndex( blockIndex, byActor.pos.x, byActor.pos.y )
+		byActor.heldItem = createActorForBlockIndex( blockIndex, creationPos.x, creationPos.y )
 
 		if byActor.heldItem ~= nil then
 			makeHeld( byActor.heldItem )
+
+			byActor.heldItem.pos = creationPos + actorULOffset( byActor.heldItem )
 
 			clearBlock( blockX, blockY )
 			return true
@@ -686,7 +692,7 @@ end
 GLOBAL_DRAG = 0.175
 
 function updateHeldItem( holder, item )
-	item.pos = holder.pos + vec2:new( 0, -14 - math.sin( ticks * 0.08 ) * 1 )
+	item.pos = lerp( item.pos, holder.pos + vec2:new( 0, 1 + math.sin( ticks * 0.06 ) * 1.5 ), 0.08 )
 	item.lastPos:set( item.pos.x, item.pos.y )
 	item.vel:set( 0, 0 )
 end
@@ -966,6 +972,10 @@ function actorOpacityForDither( actor )
 	return actor.occlusionOpacity or 1.0
 end
 
+function actorULOffset( actor )
+	return actor.ulOffset or actor.config.ulOffset
+end
+
 function drawActor( actor )
 	local animation = currentAnimation( actor )
 	if animation == nil then return end
@@ -980,9 +990,11 @@ function drawActor( actor )
 
 	local flipX = actor.heading:majorAxis() == 0 and actor.heading.x > 0
 
+	local ulOffset = actorULOffset( actor )
+
 	spr( sprite, 
-		round( actor.pos.x - actor.config.ulOffset.x ), 
-		round( actor.pos.y - actor.config.ulOffset.y ), 
+		round( actor.pos.x - ulOffset.x ), 
+		round( actor.pos.y - ulOffset.y ), 
 		actor.config.tileSizeX, 
 		actor.config.tileSizeY, 
 		flipX,
