@@ -763,7 +763,7 @@ function updatePlayer( actor )
 end
 
 function combineResources( a, b )
-	assert( a.config == b.config )
+	assert( a.configKey == b.configKey )
 
 	local total = ( a.count or 1 ) + ( b.count or 1 )
 
@@ -777,7 +777,7 @@ function actorMayCombine( actor )
 end
 
 function onResourcesCollide( a, b )
-	if a.config == b.config and actorMayCombine( a ) and actorMayCombine( b ) then
+	if a.configKey == b.configKey and actorMayCombine( a ) and actorMayCombine( b ) then
 		combineResources( a, b )
 	end
 end
@@ -1286,9 +1286,9 @@ function collideActorPair( actorA, actorB )
 	end
 end
 
-function eachNearbyActorToActor( actor, radius, callback )
-	local tileX = worldToTile( actor.pos.x )
-	local tileY = worldToTile( actor.pos.y )
+function eachNearbyActorToPos( pos, radius, callback )
+	local tileX = worldToTile( pos.x )
+	local tileY = worldToTile( pos.y )
 
 	local radiusSquared = radius * radius
 
@@ -1296,16 +1296,20 @@ function eachNearbyActorToActor( actor, radius, callback )
 	for y = tileY - radiusInTiles, tileY + radiusInTiles do
 		for x = tileX - radiusInTiles, tileX + radiusInTiles do
 			forEachActorOnBlock( x, y, function( tileActor )
-				if tileActor ~= actor then
-					if ( tileActor.pos - actor.pos ):lengthSquared() <= radiusSquared then
-						callback( tileActor )
-					end
+				if ( tileActor.pos - pos ):lengthSquared() <= radiusSquared then
+					callback( tileActor )
 				end
 			end)		
 		end
 	end
+end
 
-	-- TODO
+function eachNearbyActorToActor( actor, radius, callback )
+	return eachNearbyActorToPos( actor.pos, radius, function( otherActor )
+		if otherActor ~= actor then
+			callback( otherActor )
+		end
+	end)
 end
 
 function collideActors()
@@ -1519,6 +1523,102 @@ function amendedObject( object, callback )
 	return amended
 end
 
+function tileCenterToWorldPos( x, y )
+	return ( vec2:new( x, y ) + vec2:new( 0.5, 0.5 )) * PIXELS_PER_TILE
+end
+
+function ingredientCount( list, configKey )
+	for _, item in ipairs( list ) do
+		if item[ 1 ] == configKey then return item[ 2 ] end
+	end
+	return 0
+end
+
+function consumeActor( actor )
+	if ( actor.count or 1 ) <= 1 then
+		deleteActor( actor )
+	else
+		actorCountAdd( actor, -1 )
+	end
+end
+
+function blockStartRecipe( x, y, recipe, availableIngredients )
+	trace( 'start' )
+
+	-- consume ingredients
+	for key, count in pairs( recipe.inputs ) do
+		for _, actor in ipairs( availableIngredients[ key ] ) do
+			consumeActor( actor )
+		end
+	end
+
+	-- cook
+	-- instant for now TODO
+
+	local creationPosition = tileCenterToWorldPos( x, y ) + vec2:new( 0, 14 )
+
+	for key, count in pairs( recipe.output ) do
+		for i = 1, count do
+			createActor( key, creationPosition.x, creationPosition.y )
+		end
+	end
+end
+
+function blockCheckRecipes( x, y, blockType, blockTypeIndex )
+	local recipes = blockType.recipes
+	if recipes == nil or #recipes == 0 then return end
+
+	local availableIngredients = {}
+
+	eachNearbyActorToPos( tileCenterToWorldPos( x, y ), 16, function( actor )
+		if not actor.held then
+			if availableIngredients[ actor.configKey ] == nil then
+				availableIngredients[ actor.configKey ] = {}
+			end
+			-- insert the actor once for each of its counts
+			for i = 1, ( actor.count or 1 ) do
+				table.insert( availableIngredients[ actor.configKey ], actor )
+			end
+		end
+	end)
+
+	for _, recipe in ipairs( recipes ) do
+		local satisfied = true
+		for key, count in pairs( recipe.inputs ) do
+			if availableIngredients[ key ] ~= nil then
+				local availableCount = #availableIngredients[ key ]
+				if( availableCount or 0 ) < count then
+					satisfied = false
+					break
+				end
+			else
+				satisfied = false
+				break
+			end
+		end
+
+		if satisfied then
+			blockStartRecipe( x, y, recipe, availableIngredients )
+		end
+	end
+end
+
+function ovenClass( callback )
+	local class = {
+		actorConfigName = 'oven',
+		recipes = {
+			{
+				inputs = { iron_ore = 2 },
+				output = { iron = 1 },
+				duration = 2,
+			},
+		},
+		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
+	}
+	if callback ~= nil then callback( class ) end
+	return class
+end
+
 blockConfigs = {
 	ground = {
 		mayBePlacedUpon = true,
@@ -1531,18 +1631,6 @@ blockConfigs = {
 	},
 	harvester = {
 		actorConfigName = 'harvester',
-		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
-		tick = function( x, y, blockType, blockTypeIndex )
-		end,
-	},
-	oven_off = {
-		actorConfigName = 'oven',
-		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
-		tick = function( x, y, blockType, blockTypeIndex )
-		end,
-	},
-	oven_on = {
-		actorConfigName = 'oven',
 		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
 		tick = function( x, y, blockType, blockTypeIndex )
 		end,
@@ -1606,8 +1694,18 @@ blockTypes = {
 		baseType = 261+32*3,
 	},
 
-	[512] = blockConfigs.oven_off,
-	[513] = blockConfigs.oven_on,
+	[512] = ovenClass( function( class )
+		class.on_version = 513
+		class.tick = function( x, y, blockType, blockTypeIndex )
+			blockCheckRecipes( x, y, blockType, blockTypeIndex )
+		end
+	end),
+	[513] = ovenClass( function( class )
+		class.off_version = 512
+		class.tick = function( x, y, blockType, blockTypeIndex )
+			-- TODO
+		end
+	end),
 	[515] = blockConfigs.combiner_off,
 	[516] = blockConfigs.combiner_on,
 	[517] = blockConfigs.sensor_off,
