@@ -451,6 +451,10 @@ function pickupPoint( byActor )
 	return byActor.pos + ARM_OFFSET + byActor.heading * ARM_LENGTH
 end
 
+function placementPoint( byActor )
+	return byActor.pos + vec2:new( 0, 4 ) + byActor.heading * ARM_LENGTH
+end
+
 function blockInteractionTile( byActor )
 	local point = pickupPoint( byActor )
 
@@ -519,8 +523,8 @@ function mayPlaceBlockOnBlock( x, y )
 end
 
 function tryPlaceAsBlock( item, direction, position )
-	local blockTypeForHeldItem = actorPlacementBlock( item, direction )
-	if blockTypeForHeldItem ~= nil then 
+	local blockTypeForItem = actorPlacementBlock( item, direction )
+	if blockTypeForItem ~= nil then 
 
 		-- clear block placement area?
 		local placementPos = position or actorCenter( item )
@@ -528,33 +532,47 @@ function tryPlaceAsBlock( item, direction, position )
 		local placementY = worldToTile( placementPos.y )
 		if not mayPlaceBlockOnBlock( placementX, placementY ) then return end
 
-		setBlockType( placementX, placementY, blockTypeForHeldItem )
+		setBlockType( placementX, placementY, blockTypeForItem )
 
 		deleteActor( item )
-
-		createActor( 'placement_poof', placementX * PIXELS_PER_TILE, placementY * PIXELS_PER_TILE )
-
-		return true
+		return placementX, placementY
 	else
-		return false
+		return nil
 	end
 end
 
+function playerTryPlaceAsBlock( item, direction, position )
+	local placementX, placementY = tryPlaceAsBlock( item, direction, position )
+	if placementX ~= niil then
+		createActor( 'placement_poof', placementX * PIXELS_PER_TILE, placementY * PIXELS_PER_TILE )
+	end
+	return success
+end
+
 function tryDropHeldItem( forceAsBlock, forceAsItem )
-	if not player.heldItem then return end
+	local item = player.heldItem
+	if not item then return end
+
+	local dropPoint = placementPoint( player )
 
 	-- placeable as block?
 
 	if not forceAsBlock and 
 	   (forceAsItem or 
-	   		not tryPlaceAsBlock( player.heldItem, player.heading:cardinalDirection(), player.pos )) then
+		playerTryPlaceAsBlock( item, player.heading:cardinalDirection(), dropPoint.pos ) == nil ) then
 
-		-- placeable as item?
-		player.heldItem.held = false	-- probably moot, but just in case
-		player.heldItem.ulOffset = nil
-		player.heldItem.inert = false
-		player.heldItem.nonColliding = false
-		player.heldItem = nil
+		-- counted?
+		if item.count ~= nil and item.count > 1 then
+			actorCountAdd( item, -1 )
+			createActor( item.configKey, dropPoint.x, dropPoint.y )
+		else
+			item.pos:set( dropPoint.x, dropPoint.y )
+			item.held = false	-- probably moot, but just in case
+			item.ulOffset = nil
+			item.inert = false
+			item.nonColliding = false
+			player.heldItem = nil
+		end
 		return
 	end
 
@@ -604,7 +622,7 @@ function tryPickupActor( byActor )
 
 	-- look for actors near the pick area
 	local point = pickupPoint( byActor )
-	local pickupActor = findPickupActorNear( byAcor, point.x, point.y, 8 )
+	local pickupActor = findPickupActorNear( byAcor, point.x, point.y, 12 )
 	if pickupActor == byActor or pickupActor == nil then return nil end
 
 	makeHeld( pickupActor )
@@ -698,6 +716,13 @@ function updateViewTransform()
 	setWorldView( viewPoint.x, viewPoint.y )
 end
 
+function populateWithActors()
+	createActor( 'iron_ore', 60, 40 )
+	createActor( 'iron_ore', 100, 40 )
+	createActor( 'iron_ore', 120, 40 )
+	createActor( 'iron_ore', 30, 40 )
+end
+
 function startGame()
 
 	restoreInitialMap()
@@ -718,6 +743,8 @@ function startGame()
 
 	player = createActor( 'player', 2 * PIXELS_PER_TILE, 3 * PIXELS_PER_TILE )
 
+	populateWithActors()
+
 	updateViewTransform()
 end
 
@@ -734,6 +761,28 @@ function updatePlayer( actor )
 		updateHeldItem( player, player.heldItem )
 	end
 end
+
+function combineResources( a, b )
+	assert( a.config == b.config )
+
+	local total = ( a.count or 1 ) + ( b.count or 1 )
+
+	a.count = math.min( total, a.config.maxCount or 1 )
+
+	deleteActor( b )
+end
+
+function actorMayCombine( actor )
+	return actor.config.mayCombine and not actor.held
+end
+
+function onResourcesCollide( a, b )
+	if a.config == b.config and actorMayCombine( a ) and actorMayCombine( b ) then
+		combineResources( a, b )
+	end
+end
+
+RESOURCE_MAX_COUNT_DEFAULT = 99
 
 actorConfigurations = {
 	player = {
@@ -758,7 +807,7 @@ actorConfigurations = {
 		tick = updatePlayer,
 	},
 	robot = {
-		dims = vec2:new( 24, 24 ),
+		dims = vec2:new( 8, 16 ),
 		ulOffset = vec2:new( 18, 29 ),
 		fadeForPlayer = true,
 		tileSizeX = 2,
@@ -867,6 +916,8 @@ actorConfigurations = {
 	-- RESOURCES
 	iron_ore = {
 		mayBePickedUp = true,
+		mayCombine = true,
+		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
 		dims = vec2:new( 7, 7 ),
 		ulOffset = vec2:new( 8, 11 ),
 		tileSizeX = 1,
@@ -877,6 +928,8 @@ actorConfigurations = {
 	},
 	iron = {
 		mayBePickedUp = true,
+		mayCombine = true,
+		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
 		dims = vec2:new( 9, 8 ),
 		ulOffset = vec2:new( 9, 11 ),
 		tileSizeX = 1,
@@ -887,6 +940,8 @@ actorConfigurations = {
 	},
 	copper = {
 		mayBePickedUp = true,
+		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
+		mayCombine = true,
 		dims = vec2:new( 9, 8 ),
 		ulOffset = vec2:new( 9, 11 ),
 		tileSizeX = 1,
@@ -897,6 +952,8 @@ actorConfigurations = {
 	},
 	gold_ore = {
 		mayBePickedUp = true,
+		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
+		mayCombine = true,
 		dims = vec2:new( 7, 7 ),
 		ulOffset = vec2:new( 8, 11 ),
 		tileSizeX = 1,
@@ -907,6 +964,8 @@ actorConfigurations = {
 	},
 	wood = {
 		mayBePickedUp = true,
+		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
+		mayCombine = true,
 		dims = vec2:new( 11, 6 ),
 		ulOffset = vec2:new( 8, 11 ),
 		tileSizeX = 1,
@@ -917,6 +976,8 @@ actorConfigurations = {
 	},
 	stone = {
 		mayBePickedUp = true,
+		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
+		mayCombine = true,
 		dims = vec2:new( 8,11 ),
 		ulOffset = vec2:new( 9, 10 ),
 		tileSizeX = 1,
@@ -927,6 +988,8 @@ actorConfigurations = {
 	},
 	chip = {
 		mayBePickedUp = true,
+		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
+		mayCombine = true,
 		dims = vec2:new( 10, 8 ),
 		ulOffset = vec2:new( 9, 12 ),
 		tileSizeX = 1,
@@ -946,8 +1009,9 @@ function createActor( configKey, x, y )
 	assert( config )
 
 	local actor = {
-		birthdate = now(),
+		configKey = configKey,
 		config = config,
+		birthdate = now(),
 		pos = vec2:new( x, y ),
 		lastPos = vec2:new( x, y ),
 		vel = vec2:new( 0, 0 ),
@@ -1037,7 +1101,7 @@ function actorBounds( actor )
 end
 
 function actorVisualBounds( actor )
-	local ul = actor.pos - actor.config.ulOffset
+	local ul = actor.pos - actorULOffset( actor )
 
 	local wid = actor.config.tileSizeX * PIXELS_PER_TILE
 	local hgt = actor.config.tileSizeY * PIXELS_PER_TILE
@@ -1147,6 +1211,14 @@ function drawActor( actor )
 	)
 
 	fillp( 0 )
+
+	-- draw count
+
+	if actor.count ~= nil and actor.count > 1 then
+		local actorBounds = actorVisualBounds( actor )
+		local countPos = vec2:new( actorBounds.right - 4, actorBounds.top )
+		print( '' .. actor.count, round( countPos.x ), round( countPos.y ))
+	end
 end
 
 -- GLOBALS
@@ -1175,7 +1247,7 @@ end
 function actorOnCollide( actor, other )
 
 	-- add to colliding actors if it's not there already
-	if actor.collidingActors[ other ] == nil then
+	if actor.collidingActors ~= nil and actor.collidingActors[ other ] == nil then
 		actor.collidingActors[ other ] = true
 		if actor.config.onActorCollisionStart ~= nil then
 			actor.config.onActorCollisionStart( actor, other )
@@ -1189,7 +1261,7 @@ function actorOnCollide( actor, other )
 end
 
 function actOnNotCollide( actor, other )
-	if actor.collidingActors[ other ] ~= nil then
+	if actor.collidingActors ~= nil and actor.collidingActors[ other ] ~= nil then
 		actor.collidingActors[ other ] = nil
 		if actor.config.onActorCollisionEnd ~= nil then
 			actor.config.onActorCollisionEnd( actor, other )
@@ -1214,13 +1286,33 @@ function collideActorPair( actorA, actorB )
 	end
 end
 
+function eachNearbyActorToActor( actor, radius, callback )
+	local tileX = worldToTile( actor.pos.x )
+	local tileY = worldToTile( actor.pos.y )
+
+	local radiusSquared = radius * radius
+
+	local radiusInTiles = math.max( 1, radius / PIXELS_PER_TILE )
+	for y = tileY - radiusInTiles, tileY + radiusInTiles do
+		for x = tileX - radiusInTiles, tileX + radiusInTiles do
+			forEachActorOnBlock( x, y, function( tileActor )
+				if tileActor ~= actor then
+					if ( tileActor.pos - actor.pos ):lengthSquared() <= radiusSquared then
+						callback( tileActor )
+					end
+				end
+			end)		
+		end
+	end
+
+	-- TODO
+end
+
 function collideActors()
 
 	for i, actor in ipairs( actors ) do
 		if actor ~= player then
-			if player.config.mayInitiateActorCollision or actor.config.mayInitiateActorCollision then
-				collideActorPair( player, actor )
-			end
+			collideActorPair( player, actor )
 		end
 	end
 end
@@ -1289,6 +1381,13 @@ function collideActorWithTerrain( actor )
 	return false
 end
 
+
+function actorCheckSurroundingTilesForNearbyActors( actor, radius ) 
+	eachNearbyActorToActor( actor, radius, function( otherActor )
+		onResourcesCollide( actor, otherActor )
+	end)
+end
+
 function updateActor( actor )
 
 	if not actor.inert and ( actor.config.inert == nil or not actor.config.inert ) then
@@ -1309,6 +1408,8 @@ function updateActor( actor )
 			end
 		end
 
+		actorCheckSurroundingTilesForNearbyActors( actor, 10 )
+
 		if actor.config.convertToBlockWhenPossible then
 			tryPlaceAsBlock( actor, effectiveVelocity( actor ):cardinalDirection(), actor.pos )
 		end
@@ -1321,8 +1422,6 @@ function updateActorsOnBlocks()
 	blocksToActors = {}
 
 	for _, actor in ipairs( actors ) do
-		-- TODO check corners and pick what I'm *most* on
-
 		local actorTileX = worldToTile( actor.pos.x )
 		local actorTileY = worldToTile( actor.pos.y )
 
@@ -1340,7 +1439,7 @@ function updateActors()
 		updateActor( actor )
 	end
 
-	collideActors()
+	-- collideActors()
 
 	-- clamp the player to the world
 	player.pos.x = clamp( player.pos.x, 16, WORLD_SIZE_PIXELS - 16 )
@@ -1679,6 +1778,22 @@ function drawMap()
 	local hgt = tiles.bottom - tiles.top + 1
 
 	map( tiles.left, tiles.top, tiles.left * PIXELS_PER_TILE, tiles.top * PIXELS_PER_TILE, wid, hgt )
+end
+
+function actorCountAdd( actor, amount )
+	amount = amount ~= nil and amount or 1
+
+	if actor.count == nil then actor.count = 1 end
+	actor.count = actor.count + amount
+
+	if actor.count < 1 then actor.count = 1 end
+
+	local maxCount = actor.config.maxCount or 1
+	if actor.count > actor.config.maxCount then
+		actor.count = actor.config.maxCount
+	end
+
+	-- count estabilished.
 end
 
 function actorDrawBounds()
