@@ -401,6 +401,29 @@ function range( from, to, step )
 	return arr
 end
 
+function saveInitialMap()
+	initialMap = {}
+	for y = 0, WORLD_SIZE_TILES - 1 do
+		initialMap[ y ] = {}
+		for x = 0, WORLD_SIZE_TILES - 1 do
+			initialMap[ y ][ x ] = mget( x, y )
+		end
+	end
+end
+
+function restoreInitialMap()
+	if initialMap == nil then 
+		trace( 'no initial map to restore' )
+		return 
+	end
+
+	for y = 0, WORLD_SIZE_TILES - 1 do
+		for x = 0, WORLD_SIZE_TILES - 1 do
+			mset( x, y, initialMap[ y ][ x ] )
+		end
+	end
+end
+
 actors = {}
 blocksToActors = {}
 
@@ -601,6 +624,9 @@ function tryPickupBlock( byActor )
 		byActor.heldItem = createActorForBlockIndex( blockIndex, creationPos.x, creationPos.y )
 
 		if byActor.heldItem ~= nil then
+
+			createActor( 'pickup_particles', blockX * PIXELS_PER_TILE + 8, blockY * PIXELS_PER_TILE + 16 )
+
 			makeHeld( byActor.heldItem )
 
 			byActor.heldItem.pos = creationPos + actorULOffset( byActor.heldItem )
@@ -627,7 +653,7 @@ function onButton1()
 end
 
 function onButton2()
-	tryDropHeldItem( false, true ) -- forcing drop
+	-- tryDropHeldItem( false, true ) -- forcing drop
 end
 
 function updateInput( actor )
@@ -674,7 +700,11 @@ end
 
 function startGame()
 
+	restoreInitialMap()
+
 	actors = {}
+	robot = nil
+	player = nil
 
 	fixupBlockData()
 
@@ -730,6 +760,7 @@ actorConfigurations = {
 	robot = {
 		dims = vec2:new( 24, 24 ),
 		ulOffset = vec2:new( 18, 29 ),
+		fadeForPlayer = true,
 		tileSizeX = 2,
 		tileSizeY = 2,
 		animations = {
@@ -747,6 +778,24 @@ actorConfigurations = {
 				224, 224+3*2, 224+3*3, 224+3*4, 224+3*5, 224+3*6, 224+3*7, 224+3*8,
 				{ 	
 					frame = 224+3*8, 
+					event = function( actor )
+						deleteActor( actor )
+					end 
+				}
+			} },
+		},
+	},
+	pickup_particles = {
+		inert = true,
+		nonColliding = true,
+		ulOffset = vec2:new( 8, 16 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0.35, frames = {					
+				128, 128+1, 128+2, 128+3, 128+4, 128+5, 128+6, 128+7, 128+8, 128+9, 128+10, 128+11, 128+12, 128+13, 128+14,
+				{ 	
+					frame = 128+15, 
 					event = function( actor )
 						deleteActor( actor )
 					end 
@@ -814,6 +863,78 @@ actorConfigurations = {
 			idle = { speed = 0, frames = { 522 }},
 		},
 	},
+
+	-- RESOURCES
+	iron_ore = {
+		mayBePickedUp = true,
+		dims = vec2:new( 7, 7 ),
+		ulOffset = vec2:new( 8, 11 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 192 }},
+		},
+	},
+	iron = {
+		mayBePickedUp = true,
+		dims = vec2:new( 9, 8 ),
+		ulOffset = vec2:new( 9, 11 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 193 }},
+		},
+	},
+	copper = {
+		mayBePickedUp = true,
+		dims = vec2:new( 9, 8 ),
+		ulOffset = vec2:new( 9, 11 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 194 }},
+		},
+	},
+	gold_ore = {
+		mayBePickedUp = true,
+		dims = vec2:new( 7, 7 ),
+		ulOffset = vec2:new( 8, 11 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 195 }},
+		},
+	},
+	wood = {
+		mayBePickedUp = true,
+		dims = vec2:new( 11, 6 ),
+		ulOffset = vec2:new( 8, 11 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 196 }},
+		},
+	},
+	stone = {
+		mayBePickedUp = true,
+		dims = vec2:new( 8,11 ),
+		ulOffset = vec2:new( 9, 10 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 197 }},
+		},
+	},
+	chip = {
+		mayBePickedUp = true,
+		dims = vec2:new( 10, 8 ),
+		ulOffset = vec2:new( 9, 12 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0.5, frames = { 198, 199 }},
+		},
+	},
 }
 
 function deleteActor( actor )
@@ -839,6 +960,8 @@ function createActor( configKey, x, y )
 	}
 
 	table.insert( actors, actor )
+
+	-- trace( 'actors ' .. #actors)
 
 	return actor
 end
@@ -1589,7 +1712,7 @@ function drawActors()
 		end
 	end
 
-	local targetOpacity = numOccludingActors > 0 and ( 0.5 / ( numOccludingActors ^ (1/2) )) or 1.0
+	local targetOpacity = numOccludingActors > 0 and ( 0.2 / ( numOccludingActors ^ (1/2) )) or 1.0
 
 	for _, actor in ipairs( drawnActors ) do
 		local actorOpacity = actor.occluding and targetOpacity or 1.0
@@ -1613,5 +1736,7 @@ function draw()
 	camera( 0, 0 )
 	drawDebug()
 end
+
+saveInitialMap()
 
 startGame()
