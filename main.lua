@@ -1160,7 +1160,7 @@ function forEachActorOnBlock( x, y, callback )
 	end
 end
 
-CONVEYOR_FORCE = 0.105
+CONVEYOR_FORCE = 0.106
 
 function conveyorTick( x, y, blockType, blockTypeIndex )
 	local direction = blockType.conveyor.direction
