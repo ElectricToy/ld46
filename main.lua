@@ -287,6 +287,12 @@ function tableRemoveValue( tab, element )
 
 	table.remove( tab, tableFind( tab, element ))
 end
+
+function table.copy( t )
+	local u = {}
+	for k, v in pairs(t) do u[k] = v end
+	return setmetatable(u, getmetatable(t))
+end
 	
 local debugCircles = {}
 local debugMessages = {}
@@ -1198,62 +1204,62 @@ function conveyorOnPlaced( x, y, blockType, blockTypeIndex )
 	end)
 end
 
-blockTypes = {
-	[256] = {
+function amendedObject( object, callback )
+	local amended = table.copy( object )
+	callback( amended )
+	return amended
+end
+
+blockConfigs = {
+	ground = {
 		mayBePlacedUpon = true,
 	},
-	[257] = {
-		mayBePlacedUpon = true,
-	},
-	[258] = {
-		mayBePlacedUpon = true,
-	},
-	[259] = {
-		mayBePlacedUpon = true,
-	},
-	[260] = {
-		mayBePlacedUpon = true,
-	},
-	[261] = {
+	conveyor = {
 		actorConfigName = 'conveyor',
 		conveyor = { direction = vec2:new( 0, -1 )},
 		onPlaced = conveyorOnPlaced,
 		tick = conveyorTick,
-	},
+	}
+}
+
+blockTypes = {
+	[261] = blockConfigs.conveyor,
 	[261+4] = {
 		baseType = 261,
 	},
-	[261+32] = {
-		actorConfigName = 'conveyor',
-		conveyor = { direction = vec2:new( 1, 0 )},
-		onPlaced = conveyorOnPlaced,
-		tick = conveyorTick,
-	},
+	[261+32] = amendedObject( blockConfigs.conveyor, function( conveyor ) 
+		conveyor.conveyor = { direction = vec2:new( 1, 0 ) }
+	end),
 	[261+32+4] = {
 		baseType = 261+32,
 	},
-	[261+32*2] = {
-		actorConfigName = 'conveyor',
-		conveyor = { direction = vec2:new( 0, 1 )},
-		onPlaced = conveyorOnPlaced,
-		tick = conveyorTick,
-	},
+	[261+32*2] = amendedObject( blockConfigs.conveyor, function( conveyor ) 
+		conveyor.conveyor = { direction = vec2:new( 0, 1 ) }
+	end),
 	[261+32*2+4] = {
 		baseType = 261+32*2,
 	},
-	[261+32*3] = {
-		actorConfigName = 'conveyor',
-		conveyor = { direction = vec2:new( -1, 0 )},
-		onPlaced = conveyorOnPlaced,
-		tick = conveyorTick,
-	},
+	[261+32*3] = amendedObject( blockConfigs.conveyor, function( conveyor ) 
+		conveyor.conveyor = { direction = vec2:new( -1, 0 ) }
+	end),
 	[261+32*3+4] = {
 		baseType = 261+32*3,
 	},
 }
 
+function setBlockTypeRange( config, start, count )
+	for i = start, start + count - 1 do
+		trace( 'set ' .. i)
+		blockTypes[ i ] = config
+	end
+end
+
+function blockTypeForIndex( blockTypeIndex )
+	return blockTypes[ blockTypeIndex ]
+end
+
 function baseBlockTypeIndex( blockTypeIndex )
-	local blockType = blockTypes[ blockTypeIndex ]
+	local blockType = blockTypeForIndex( blockTypeIndex )
 	if blockType == nil then return blockTypeIndex end
 
 	if blockType.baseType and blockType.baseType ~= blockTypeIndex then
@@ -1264,14 +1270,10 @@ end
 
 function withBaseBlockType( blockTypeIndex, callback )
 	local baseTypeIndex = baseBlockTypeIndex( blockTypeIndex )
-	local baseType = blockTypes[ baseTypeIndex ]
+	local baseType = blockTypeForIndex( baseTypeIndex )
 	if baseType ~= nil then
 		return callback( baseType, baseTypeIndex )
 	end
-end
-
-function blockTypeForIndex( blockTypeIndex )
-	return blockTypes[ blockTypeIndex ]
 end
 
 function blockTypeAt( x, y )
@@ -1294,6 +1296,8 @@ function forEachBlock( callback )
 end
 
 function fixupBlockData()
+	setBlockTypeRange( blockConfigs.ground, 256, 5 )
+	
 	for _, animSet in pairs( blockAnimSets ) do
 		local animSetBase = animSet.frames[ 1 ]
 
