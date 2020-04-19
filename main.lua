@@ -668,9 +668,9 @@ end
 
 function startGame()
 
-	fixupBlockData()
-
 	actors = {}
+
+	fixupBlockData()
 
 	color_multiplied_r = 1
 	color_multiplied_g = 1
@@ -681,8 +681,6 @@ function startGame()
 
 
 	player = createActor( 'player', 2 * PIXELS_PER_TILE, 3 * PIXELS_PER_TILE )
-
-	robot = createActor( 'robot', 6 * PIXELS_PER_TILE, 3 * PIXELS_PER_TILE )
 
 	updateViewTransform()
 end
@@ -743,7 +741,55 @@ actorConfigurations = {
 		animations = {
 			idle = { speed = 0, frames = { 261 }},
 		},
-	}
+	},
+	oven = {
+		mayBePickedUp = true,
+		convertToBlockWhenPossible = true,
+		blockPlacementType = { 512, 512, 512, 512 } ,
+		dims = vec2:new( 16, 16 ),
+		ulOffset = vec2:new( 8, 16 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 512 }},
+		},
+	},
+	combiner = {
+		mayBePickedUp = true,
+		convertToBlockWhenPossible = true,
+		blockPlacementType = { 515, 515, 515, 515 } ,
+		dims = vec2:new( 16, 16 ),
+		ulOffset = vec2:new( 8, 16 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 515 }},
+		},
+	},
+	sensor = {
+		mayBePickedUp = true,
+		convertToBlockWhenPossible = true,
+		blockPlacementType = { 517, 517, 517, 517 },
+		dims = vec2:new( 16, 16 ),
+		ulOffset = vec2:new( 8, 16 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 517 }},
+		},
+	},
+	harvester = {
+		mayBePickedUp = true,
+		convertToBlockWhenPossible = true,
+		blockPlacementType = { 519, 519, 519, 519 } ,
+		dims = vec2:new( 16, 16 ),
+		ulOffset = vec2:new( 8, 16 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 519 }},
+		},
+	},
 }
 
 function deleteActor( actor )
@@ -1123,6 +1169,8 @@ function updateActor( actor )
 end
 
 function updateActorsOnBlocks()
+	blocksToActors = {}
+
 	for _, actor in ipairs( actors ) do
 		-- TODO check corners and pick what I'm *most* on
 
@@ -1159,6 +1207,9 @@ blockAnimSets = {
 	{ speed = 2, frames = range( 329, 329+3 ) },
 	{ speed = 2, frames = range( 357, 357+3 ) },
 	{ speed = 2, frames = range( 361, 361+3 ) },
+
+	{ speed = 2, frames = range( 513, 514 ) },
+	{ speed = 2, frames = range( 519, 520 ) },
 }
 
 function worldTilePosToIndex( x, y )
@@ -1230,7 +1281,59 @@ blockConfigs = {
 		conveyor = { direction = vec2:new( 0, -1 )},
 		onPlaced = conveyorOnPlaced,
 		tick = conveyorTick,
-	}
+	},
+	harvester = {
+		-- actorConfigName = 'harvester',
+		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
+		tick = function( x, y, blockType, blockTypeIndex )
+		end,
+	},
+	oven_off = {
+		actorConfigName = 'oven',
+		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
+		tick = function( x, y, blockType, blockTypeIndex )
+		end,
+	},
+	oven_on = {
+		actorConfigName = 'oven',
+		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
+		tick = function( x, y, blockType, blockTypeIndex )
+		end,
+	},
+	combiner_off = {
+		actorConfigName = 'combiner',
+		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
+		tick = function( x, y, blockType, blockTypeIndex )
+		end,
+	},
+	combiner_on = {
+		actorConfigName = 'combiner',
+		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
+		tick = function( x, y, blockType, blockTypeIndex )
+		end,
+	},
+	sensor_off = {
+		actorConfigName = 'sensor',
+		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
+		tick = function( x, y, blockType, blockTypeIndex )
+		end,
+	},
+	sensor_on = {
+		actorConfigName = 'sensor',
+		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
+		tick = function( x, y, blockType, blockTypeIndex )
+		end,
+	},
+	robot_base = {
+		onPlaced = function( x, y, blockType, blockTypeIndex ) 
+			if robot == nil then
+				robot = createActor( 'robot', ( x + 1 ) * PIXELS_PER_TILE + 2, ( y + 1 ) * PIXELS_PER_TILE - 4 )
+				trace( 'robot at ' .. robot.pos:__tostring() )
+			end
+		end,
+		tick = function( x, y, blockType, blockTypeIndex )
+		end,
+	},
 }
 
 blockTypes = {
@@ -1256,6 +1359,16 @@ blockTypes = {
 	[261+32*3+4] = {
 		baseType = 261+32*3,
 	},
+
+	[512] = blockConfigs.oven_off,
+	[513] = blockConfigs.oven_on,
+	[515] = blockConfigs.combiner_off,
+	[516] = blockConfigs.combiner_on,
+	[517] = blockConfigs.sensor_off,
+	[518] = blockConfigs.sensor_on,
+	[519] = blockConfigs.harvester,
+
+	[288] = blockConfigs.robot_base,
 }
 
 function setBlockTypeRange( config, start, count )
@@ -1361,8 +1474,6 @@ function updateBlocks()
 end
 
 function updateActive()
-
-	blocksToActors = {}
 
 	updateInput( player )
 
