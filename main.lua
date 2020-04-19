@@ -415,7 +415,7 @@ function actorControlThrust( actor, thrust )
 	end
 end
 
-ARM_LENGTH = 8
+ARM_LENGTH = 2
 ARM_OFFSET = vec2:new( 0, -2 )
 
 function pickupPoint( byActor )
@@ -557,6 +557,17 @@ function findPickupActorNear( forActor, x, y, radius )
 	return nearestActor
 end
 
+function makeHeld( item )
+	item.held = true
+	item.inert = true
+	item.nonColliding = true
+	item.vel = vec2:new( 0, 0)
+	item.lastPos = vec2:new( x, y )
+	item.vel = vec2:new( 0, 0 )
+	item.thrust = vec2:new( 0, 0 )
+	item.heading = vec2:new( -1, 0 )
+end
+
 function tryPickupActor( byActor )
 	if byActor.heldItem ~= nil then return nil end
 
@@ -565,15 +576,7 @@ function tryPickupActor( byActor )
 	local pickupActor = findPickupActorNear( byAcor, point.x, point.y, 8 )
 	if pickupActor == byActor or pickupActor == nil then return nil end
 
-	pickupActor.held = true
-	pickupActor.inert = true
-	pickupActor.vel = vec2:new( 0, 0)
-	pickupActor.lastPos = vec2:new( x, y )
-	pickupActor.vel = vec2:new( 0, 0 )
-	pickupActor.thrust = vec2:new( 0, 0 )
-	pickupActor.heading = vec2:new( -1, 0 )
-	pickupActor.nonColliding = true
-
+	makeHeld( pickupActor )
 	byActor.heldItem = pickupActor
 	return pickupActor
 end
@@ -588,9 +591,7 @@ function tryPickupBlock( byActor )
 		byActor.heldItem = createActorForBlockIndex( blockIndex, byActor.pos.x, byActor.pos.y )
 
 		if byActor.heldItem ~= nil then
-			byActor.heldItem.held = true
-			byActor.heldItem.inert = true
-			byActor.heldItem.nonColliding = true
+			makeHeld( byActor.heldItem )
 
 			clearBlock( blockX, blockY )
 			return true
@@ -682,6 +683,8 @@ GLOBAL_DRAG = 0.175
 
 function updateHeldItem( holder, item )
 	item.pos = holder.pos + vec2:new( 0, -14 - math.sin( ticks * 0.08 ) * 1 )
+	item.lastPos:set( item.pos.x, item.pos.y )
+	item.vel:set( 0, 0 )
 end
 
 function updatePlayer( actor )
