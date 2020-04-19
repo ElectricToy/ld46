@@ -460,7 +460,6 @@ function blockOnNeighborChanged( x, y, changedX, changedY )
 	withBlockTypeAt( x, y, function( blockType, blockTypeIndex )
 		withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
 			if baseBlockType ~= nil and baseBlockType.onPlaced ~= nil then
-				-- trace( x .. ' ' .. y .. ' ' .. baseBlockTypeIndex )
 				baseBlockType.onPlaced( x, y, baseBlockType, blockTypeIndex ) 
 			end
 		end)
@@ -484,7 +483,6 @@ end
 function createActorForBlockIndex( blockTypeIndex, x, y )
 	return withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
 		if baseBlockType.actorConfigName ~= nil then
-			-- trace( 'creating ' .. baseBlockType.actorConfigName )
 			return createActor( baseBlockType.actorConfigName, x, y )
 		end
 	end)
@@ -775,7 +773,7 @@ actorConfigurations = {
 		tileSizeX = 1,
 		tileSizeY = 1,
 		animations = {
-			idle = { speed = 0, frames = { 517 }},
+			idle = { speed = 0, frames = { 521 }},
 		},
 	},
 	harvester = {
@@ -787,7 +785,7 @@ actorConfigurations = {
 		tileSizeX = 1,
 		tileSizeY = 1,
 		animations = {
-			idle = { speed = 0, frames = { 519 }},
+			idle = { speed = 0, frames = { 522 }},
 		},
 	},
 }
@@ -1052,8 +1050,6 @@ function collideActorPair( actorA, actorB )
 	local boundsA = actorBounds( actorA )
 	local boundsB = actorBounds( actorB )
 
-	-- trace( boundsA.left .. ' ' .. boundsA.right .. ' ' .. boundsB.left .. ' ' .. boundsB.right )
-
 	if rectsOverlap( boundsA, boundsB ) then
 		actorOnCollide( actorA, actorB )
 		actorOnCollide( actorB, actorA )
@@ -1076,8 +1072,6 @@ end
 
 function collideActorWithTile( actor, tileX, tileY )
 	local bounds = actorBounds( actor )
-
-	-- trace( actorFoot( actor ).x .. ' ' .. actorFoot( actor ).y .. ' ' .. bounds.left .. ' ' .. bounds.top .. ' ' .. bounds.right .. ' ' .. bounds.bottom )
 
 	local tileSprite = mget( tileX, tileY )
 
@@ -1260,7 +1254,6 @@ function conveyorOnPlaced( x, y, blockType, blockTypeIndex )
 	withBlockTypeAt( x, y + 1, function( southernBlockType, southernBlockTypeIndex )
 		withBaseBlockType( southernBlockTypeIndex, function( southernBlockTypeBase, southernBaseBlockTypeIndex )
 			local desiredIndex = blockAbuttingSouthVersion( blockTypeIndex, southernBlockTypeBase and southernBlockTypeBase.conveyor ~= nil )
-			-- trace( 'cp: ' .. x .. ' ' .. y .. ' ' .. blockTypeIndex .. ' ' .. southernBaseBlockTypeIndex .. ' ' .. desiredIndex )
 			mset( x, y, desiredIndex )
 		end)
 	end)
@@ -1283,7 +1276,7 @@ blockConfigs = {
 		tick = conveyorTick,
 	},
 	harvester = {
-		-- actorConfigName = 'harvester',
+		actorConfigName = 'harvester',
 		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
 		tick = function( x, y, blockType, blockTypeIndex )
 		end,
@@ -1328,7 +1321,6 @@ blockConfigs = {
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
 			if robot == nil then
 				robot = createActor( 'robot', ( x + 1 ) * PIXELS_PER_TILE + 2, ( y + 1 ) * PIXELS_PER_TILE - 4 )
-				trace( 'robot at ' .. robot.pos:__tostring() )
 			end
 		end,
 		tick = function( x, y, blockType, blockTypeIndex )
@@ -1373,7 +1365,6 @@ blockTypes = {
 
 function setBlockTypeRange( config, start, count )
 	for i = start, start + count - 1 do
-		trace( 'set ' .. i)
 		blockTypes[ i ] = config
 	end
 end
@@ -1567,8 +1558,6 @@ function drawActors()
 	end
 
 	local targetOpacity = numOccludingActors > 0 and ( 0.5 / ( numOccludingActors ^ (1/2) )) or 1.0
-
-	-- trace( numOccludingActors .. ' ' .. targetOpacity )
 
 	for _, actor in ipairs( drawnActors ) do
 		local actorOpacity = actor.occluding and targetOpacity or 1.0
