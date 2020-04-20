@@ -802,7 +802,7 @@ end
 
 function onResourcesCollide( a, b )
 	if a.configKey == b.configKey and actorMayCombine( a ) and actorMayCombine( b ) then
-		combineResources( a, b )
+		combineResources( b, a )
 	end
 end
 
@@ -1819,6 +1819,10 @@ blockConfigs = {
 			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
 		end,
 	},
+	source_iron_ore = { harvestSource = 'iron_ore' }, 
+	source_gold_ore = { harvestSource = 'gold_ore' }, 
+	source_copper = { harvestSource = 'copper' }, 
+	source_stone = { harvestSource = 'stone' }, 
 	robot_base = {
 		sponsoredActorConfig = 'robot',
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
@@ -1891,6 +1895,10 @@ blockTypes = {
 	[288] = blockConfigs.robot_base,
 
 	[480] = blockConfigs.tree_base,
+	[481] = blockConfigs.source_iron_ore,
+	[482] = blockConfigs.source_gold_ore,
+	[483] = blockConfigs.source_copper,
+	[484] = blockConfigs.source_stone,
 	[485] = blockConfigs.rubber_tree_base,
 }
 
