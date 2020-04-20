@@ -524,17 +524,18 @@ end
 
 function tryPlaceAsBlock( item, direction, position )
 	local blockTypeForItem = actorPlacementBlock( item, direction )
-	if blockTypeForItem ~= nil then 
+	if blockTypeForItem ~= nil then
 
 		-- clear block placement area?
 		local placementPos = position or actorCenter( item )
 		local placementX = worldToTile( placementPos.x )
 		local placementY = worldToTile( placementPos.y )
-		if not mayPlaceBlockOnBlock( placementX, placementY ) then return end
+		if not mayPlaceBlockOnBlock( placementX, placementY ) then return nil end
 
 		setBlockType( placementX, placementY, blockTypeForItem )
 
-		deleteActor( item )
+		actorCountAdd( item, -1 )
+
 		return placementX, placementY
 	else
 		return nil
@@ -543,7 +544,7 @@ end
 
 function playerTryPlaceAsBlock( item, direction, position )
 	local placementX, placementY = tryPlaceAsBlock( item, direction, position )
-	if placementX ~= niil then
+	if placementX ~= nil then
 		createActor( 'placement_poof', placementX * PIXELS_PER_TILE, placementY * PIXELS_PER_TILE )
 	end
 	return success
@@ -791,7 +792,7 @@ function combineResources( a, b )
 
 	local total = ( a.count or 1 ) + ( b.count or 1 )
 
-	a.count = math.min( total, a.config.maxCount or 1 )
+	a.count = math.min( total, a.config.maxCount or RESOURCE_MAX_COUNT_DEFAULT )
 
 	deleteActor( b )
 end
@@ -904,6 +905,7 @@ actorConfigurations = {
 	},
 	conveyor = {
 		mayBePickedUp = true,
+		mayCombine = true,
 		convertToBlockWhenPossible = true,
 		blockPlacementType = { 261, 261+32, 261+32*2, 261+32*3 } ,
 		dims = vec2:new( 16, 16 ),
@@ -916,6 +918,7 @@ actorConfigurations = {
 	},
 	oven = {
 		mayBePickedUp = true,
+		mayCombine = true,
 		convertToBlockWhenPossible = true,
 		blockPlacementType = { 512, 512, 512, 512 } ,
 		dims = vec2:new( 16, 16 ),
@@ -928,6 +931,7 @@ actorConfigurations = {
 	},
 	combiner = {
 		mayBePickedUp = true,
+		mayCombine = true,
 		convertToBlockWhenPossible = true,
 		blockPlacementType = { 515, 515, 515, 515 } ,
 		dims = vec2:new( 16, 16 ),
@@ -940,6 +944,7 @@ actorConfigurations = {
 	},
 	sensor = {
 		mayBePickedUp = true,
+		mayCombine = true,
 		convertToBlockWhenPossible = true,
 		blockPlacementType = { 517, 517, 517, 517 },
 		dims = vec2:new( 16, 16 ),
@@ -952,6 +957,7 @@ actorConfigurations = {
 	},
 	harvester = {
 		mayBePickedUp = true,
+		mayCombine = true,
 		convertToBlockWhenPossible = true,
 		blockPlacementType = { 519, 519, 519, 519 } ,
 		dims = vec2:new( 16, 16 ),
@@ -967,7 +973,6 @@ actorConfigurations = {
 	iron_ore = {
 		mayBePickedUp = true,
 		mayCombine = true,
-		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
 		dims = vec2:new( 7, 7 ),
 		ulOffset = vec2:new( 8, 11 ),
 		tileSizeX = 1,
@@ -979,7 +984,6 @@ actorConfigurations = {
 	iron = {
 		mayBePickedUp = true,
 		mayCombine = true,
-		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
 		dims = vec2:new( 9, 8 ),
 		ulOffset = vec2:new( 9, 11 ),
 		tileSizeX = 1,
@@ -990,7 +994,6 @@ actorConfigurations = {
 	},
 	copper = {
 		mayBePickedUp = true,
-		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
 		mayCombine = true,
 		dims = vec2:new( 9, 8 ),
 		ulOffset = vec2:new( 9, 11 ),
@@ -1002,7 +1005,6 @@ actorConfigurations = {
 	},
 	gold_ore = {
 		mayBePickedUp = true,
-		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
 		mayCombine = true,
 		dims = vec2:new( 7, 7 ),
 		ulOffset = vec2:new( 8, 11 ),
@@ -1014,7 +1016,6 @@ actorConfigurations = {
 	},
 	gold = {
 		mayBePickedUp = true,
-		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
 		mayCombine = true,
 		dims = vec2:new( 9, 8 ),
 		ulOffset = vec2:new( 9, 11 ),
@@ -1026,7 +1027,6 @@ actorConfigurations = {
 	},
 	wood = {
 		mayBePickedUp = true,
-		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
 		mayCombine = true,
 		dims = vec2:new( 11, 6 ),
 		ulOffset = vec2:new( 8, 11 ),
@@ -1038,7 +1038,6 @@ actorConfigurations = {
 	},
 	rubber = {
 		mayBePickedUp = true,
-		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
 		mayCombine = true,
 		dims = vec2:new( 7,6 ),
 		ulOffset = vec2:new( 8, 10 ),
@@ -1050,7 +1049,6 @@ actorConfigurations = {
 	},
 	stone = {
 		mayBePickedUp = true,
-		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
 		mayCombine = true,
 		dims = vec2:new( 8,11 ),
 		ulOffset = vec2:new( 9, 10 ),
@@ -1062,7 +1060,6 @@ actorConfigurations = {
 	},
 	chip = {
 		mayBePickedUp = true,
-		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
 		mayCombine = true,
 		dims = vec2:new( 10, 8 ),
 		ulOffset = vec2:new( 9, 12 ),
@@ -1717,7 +1714,7 @@ function harvesterTick( x, y, blockType, blockTypeIndex )
 	withBlockTypeAt( x, y - 1, function( neighborBlockType, neighborBlockTypeIndex )
 		withBaseBlockType( neighborBlockTypeIndex, function( neighborBlockTypeBase, neighborBaseBlockTypeIndex )
 			if neighborBlockTypeBase.harvestSource ~= nil then
-				local harvestRate = neighborBlockTypeBase.harvestRate or 5 * 60
+				local harvestRate = neighborBlockTypeBase.harvestRate or 1 * 60
 				if ticks % harvestRate == 0 then
 					local creationPosition = creationPositionFromBlockAt( x, y )
 					createActor( neighborBlockTypeBase.harvestSource, creationPosition.x, creationPosition.y )
@@ -1758,7 +1755,7 @@ blockConfigs = {
 		on_version = 516,
 		recipes = {
 			{
-				inputs = { iron_ore = 2, rubber = 2 },
+				inputs = { iron = 2, rubber = 2 },
 				output = { conveyor = 1 },
 				duration = 1,
 			},
@@ -2071,14 +2068,16 @@ function actorCountAdd( actor, amount )
 	if actor.count == nil then actor.count = 1 end
 	actor.count = actor.count + amount
 
-	if actor.count < 1 then actor.count = 1 end
-
-	local maxCount = actor.config.maxCount or 1
-	if actor.count > actor.config.maxCount then
-		actor.count = actor.config.maxCount
+	if actor.count < 1 then 
+		deletActor( actor )
 	end
 
-	-- count estabilished.
+	local maxCount = actor.config.maxCount or RESOURCE_MAX_COUNT_DEFAULT
+	if actor.count > maxCount then
+		actor.count = maxCount
+	end
+
+	-- count established.
 end
 
 function actorDrawBounds()
