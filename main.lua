@@ -21,12 +21,17 @@ sprite_size( PIXELS_PER_TILE )
 WORLD_SIZE_TILES = 32
 WORLD_SIZE_PIXELS = WORLD_SIZE_TILES * PIXELS_PER_TILE
 
-barrel_ = 0.2
-bloom_intensity_ = 0
-bloom_contrast_ = 0
-bloom_brightness_ = 0
-burn_in_ = 0.10
-chromatic_aberration_ = 0.4
+DEFAULT_CHROMATIC_ABERRATION = 0.4
+DEFAULT_BARREL = 0.2
+DEFAULT_BLOOM_INTENSITY = 0.1
+DEFAULT_BURN_IN = 0.1
+
+barrel_ = DEFAULT_BARREL
+bloom_intensity_ = DEFAULT_BLOOM_INTENSITY
+bloom_contrast_ = 10
+bloom_brightness_ = 1
+burn_in_ = DEFAULT_BURN_IN
+chromatic_aberration_ = DEFAULT_CHROMATIC_ABERRATION
 noise_ = 0.025
 rescan_ = 0.75
 saturation_ = 1
@@ -357,6 +362,10 @@ end
 
 function clamp( x, minimum, maximum )
 	return math.min( maximum, math.max( x, minimum ))
+end
+
+function proportion( x, a, b )
+	return ( x - a ) / ( b - a )
 end
 
 function pctChance( percent )
@@ -797,6 +806,11 @@ function startGame()
 
 	fixupBlocks()
 
+	chromatic_aberration_ = DEFAULT_CHROMATIC_ABERRATION
+	barrel_ = 				DEFAULT_BARREL
+	bloom_intensity_ = 		DEFAULT_BLOOM_INTENSITY
+	burn_in_ = DEFAULT_BURN_IN
+
 	color_multiplied_r = 1
 	color_multiplied_g = 1
 	color_multiplied_b = 1
@@ -870,7 +884,9 @@ ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 60
 FUEL_LOSS_PER_TICK = 1
 FUEL_LOSS_PER_SECOND = FUEL_LOSS_PER_TICK * 60
 ROBOT_FUEL_PER_WOOD = FUEL_LOSS_PER_SECOND * ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS
-ROBOT_MAX_FUEL = ROBOT_FUEL_PER_WOOD * 2
+ROBOT_MAX_FUEL = ROBOT_FUEL_PER_WOOD * 0.5
+MAX_FUEL_FOR_NEEDINESS = FUEL_LOSS_PER_SECOND * 30
+MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY = FUEL_LOSS_PER_SECOND * 10
 
 function onRobotOutOfFuel( actor )
 	trace( 'out of fuel' )
@@ -883,6 +899,18 @@ end
 function robotTick( actor )
 	actor.fuel = actor.fuel ~= nil and actor.fuel or actor.config.fuel
 	actor.fuel = actor.fuel - FUEL_LOSS_PER_TICK
+
+	local fuelNeediness = clamp( proportion( actor.fuel, MAX_FUEL_FOR_NEEDINESS, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY ) ^ 2, 0, 1 )
+	
+	chromatic_aberration_ = lerp( DEFAULT_CHROMATIC_ABERRATION, 1.0, fuelNeediness )
+	barrel_ = 				lerp( DEFAULT_BARREL, 				0.7, fuelNeediness )
+	bloom_intensity_ = 		lerp( DEFAULT_BLOOM_INTENSITY, 		0.2, fuelNeediness )
+	burn_in_ =		 		lerp( DEFAULT_BURN_IN,		 		0.5, fuelNeediness )
+	-- color_multiplied_g =	lerp( 1.0, 0.5, fuelNeediness )
+	-- color_multiplied_b =	lerp( 1.0, 0.5, fuelNeediness )
+
+	-- trace( fuelNeediness )
+
 
 	if actor.fuel <= 0 then
 		actor.fuel = 0
