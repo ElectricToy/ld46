@@ -825,13 +825,39 @@ actorConfigurations = {
 		tick = updatePlayer,
 	},
 	robot = {
-		dims = vec2:new( 8, 16 ),
+		dims = vec2:new( 24, 26 ),
 		ulOffset = vec2:new( 18, 29 ),
+		inert = true,
+		nonColliding = true,
 		fadeForPlayer = true,
 		tileSizeX = 2,
 		tileSizeY = 2,
 		animations = {
 			idle = { speed = 0.1, frames = { 10, 12, 14 }},
+		},
+	},
+	tree = {
+		inert = true,
+		nonColliding = true,
+		fadeForPlayer = true,
+		dims = vec2:new( 18, 56 ),
+		ulOffset = vec2:new( 16, 64 ),
+		tileSizeX = 2,
+		tileSizeY = 4,
+		animations = {
+			idle = { speed = 0, frames = { 320 }},
+		},
+	},
+	tree_rubber = {
+		inert = true,
+		nonColliding = true,
+		fadeForPlayer = true,
+		dims = vec2:new( 30, 43 ),
+		ulOffset = vec2:new( 24, 48 ),
+		tileSizeX = 3,
+		tileSizeY = 3,
+		animations = {
+			idle = { speed = 0, frames = { 322 }},
 		},
 	},
 	placement_poof = {
@@ -1131,6 +1157,15 @@ function currentAnimation( actor )
 	return animations[ anim ]
 end
 
+function actorOccludingBounds( actor )
+	return {
+		left = actor.pos.x - actor.config.dims.x / 4,
+		top =  actor.pos.y - actor.config.dims.y,
+		right = actor.pos.x + actor.config.dims.x / 4,
+		bottom = actor.pos.y,
+	}
+end
+
 function actorBounds( actor )
 	local foot = actor.pos
 
@@ -1197,12 +1232,11 @@ end
 function actorOccludesPlayer( actor )
 	if player.pos.y > actor.pos.y then return false end
 
-	local myBounds = actorBounds( actor )
+	local myBounds = actorOccludingBounds( actor )
 	local playerBounds = expandContractRect( actorBounds( player ), 16 )
 
 	return rectsOverlap( myBounds, playerBounds )
 end
-
 
 function bitPatternForAlpha( alpha )
 	local iAlpha = math.floor( alpha * 16 )
@@ -1742,10 +1776,25 @@ blockConfigs = {
 		tick = function( x, y, blockType, blockTypeIndex )
 		end,
 	},
+	tree_base = {
+		sponsoredActorConfig = 'tree',
+		harvestSsource = 'wood',
+		onPlaced = function( x, y, blockType, blockTypeIndex ) 
+			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
+		end,
+	},
+	rubber_tree_base = {
+		sponsoredActorConfig = 'tree_rubber',
+		harvestSsource = 'rubber',
+		onPlaced = function( x, y, blockType, blockTypeIndex ) 
+			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
+		end,
+	},
 	robot_base = {
+		sponsoredActorConfig = 'robot',
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
 			if robot == nil then
-				robot = createActor( 'robot', ( x + 1 ) * PIXELS_PER_TILE + 2, ( y + 1 ) * PIXELS_PER_TILE - 4 )
+				robot = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
 			end
 		end,
 		tick = function( x, y, blockType, blockTypeIndex )
@@ -1811,6 +1860,9 @@ blockTypes = {
 	[519] = blockConfigs.harvester,
 
 	[288] = blockConfigs.robot_base,
+
+	[480] = blockConfigs.tree_base,
+	[485] = blockConfigs.rubber_tree_base,
 }
 
 function setBlockTypeRange( config, start, count )
