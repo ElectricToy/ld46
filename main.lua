@@ -524,30 +524,38 @@ end
 
 function tryPlaceAsBlock( item, direction, position )
 	local blockTypeForItem = actorPlacementBlock( item, direction )
-	if blockTypeForItem ~= nil then
+	if blockTypeForItem == nil then return nil end
 
-		-- clear block placement area?
-		local placementPos = position or actorCenter( item )
-		local placementX = worldToTile( placementPos.x )
-		local placementY = worldToTile( placementPos.y )
-		if not mayPlaceBlockOnBlock( placementX, placementY ) then return nil end
-
-		setBlockType( placementX, placementY, blockTypeForItem )
-
-		actorCountAdd( item, -1 )
-
-		return placementX, placementY
-	else
-		return nil
+	-- clear block placement area?
+	local placementPos = position or actorCenter( item )
+	local placementX = worldToTile( placementPos.x )
+	local placementY = worldToTile( placementPos.y )
+	if not mayPlaceBlockOnBlock( placementX, placementY ) then 
+		return nil 
 	end
+
+	setBlockType( placementX, placementY, blockTypeForItem )
+
+	actorCountAdd( item, -1 )
+
+	return placementX, placementY
 end
 
 function playerTryPlaceAsBlock( item, direction, position )
+
 	local placementX, placementY = tryPlaceAsBlock( item, direction, position )
+	
 	if placementX ~= nil then
+		
+		-- succeeded
+		if item.deleted then 
+			player.heldItem = nil
+		end
+
 		createActor( 'placement_poof', placementX * PIXELS_PER_TILE, placementY * PIXELS_PER_TILE )
 	end
-	return success
+
+	return placementX, placementY
 end
 
 function tryDropHeldItem( options )
@@ -562,17 +570,23 @@ function tryDropHeldItem( options )
 
 	local dropPoint = placementPoint( player )
 
-	-- placeable as block?
+	local placed = false
+	if not options.forceAsItem or options.forceAsBlock then
+		-- try to place as a block
+		local placementX, placementY = playerTryPlaceAsBlock( item, player.heading:cardinalDirection(), dropPoint.pos )
+		placed = placed or placementX ~= nil
+	end
 
-	if not options.forceAsBlock and 
-	   (options.forceAsItem or 
-		playerTryPlaceAsBlock( item, player.heading:cardinalDirection(), dropPoint.pos ) == nil ) then
+	if not placed then
+		-- try to place as an item
 
-		-- counted?
-		if not options.preferDropAll and (item.count ~= nil and item.count > 1 ) then
-			actorCountAdd( item, -1 )
+		-- does this item have count?
+		if not options.preferDropAll and (( item.count or 1 ) > 1 ) then
 			createActor( item.configKey, dropPoint.x, dropPoint.y )
+			actorCountAdd( item, -1 )
 		else
+			-- no count, or we're dropping them all. don't create a new item, just drop this one.
+
 			item.pos:set( dropPoint.x, dropPoint.y )
 			item.held = false	-- probably moot, but just in case
 			item.ulOffset = nil
@@ -580,10 +594,7 @@ function tryDropHeldItem( options )
 			item.nonColliding = false
 			player.heldItem = nil
 		end
-		return
 	end
-
-	player.heldItem = nil
 end
 
 function forEachActorNear( x, y, radius, callback )
@@ -718,6 +729,11 @@ function updateViewTransform()
 
 	viewOffset.y = screen_hgt() / 2
 
+	-- local desiredViewPoint = ( player.pos - vec2:new( 0, 10 ) ) - viewOffset + player.vel * 32
+	
+	-- if viewPoint == nil then viewPoint = desiredViewPoint end
+	-- viewPoint = lerp( viewPoint, desiredViewPoint, 0.05 )
+
 	local viewPoint = ( player.pos - vec2:new( 0, 10 ) ) - viewOffset
 
 	setWorldView( viewPoint.x, viewPoint.y )
@@ -803,7 +819,7 @@ end
 
 function onResourcesCollide( a, b )
 	if a.configKey == b.configKey and actorMayCombine( a ) and actorMayCombine( b ) then
-		combineResources( b, a )
+		combineResources( a, b )
 	end
 end
 
@@ -1072,6 +1088,7 @@ actorConfigurations = {
 }
 
 function deleteActor( actor )
+	actor.deleted = true
 	tableRemoveValue( actors, actor )
 end
 
@@ -2068,13 +2085,13 @@ function actorCountAdd( actor, amount )
 	if actor.count == nil then actor.count = 1 end
 	actor.count = actor.count + amount
 
-	if actor.count < 1 then 
-		deletActor( actor )
-	end
-
 	local maxCount = actor.config.maxCount or RESOURCE_MAX_COUNT_DEFAULT
 	if actor.count > maxCount then
 		actor.count = maxCount
+	end
+
+	if actor.count < 1 then 
+		deleteActor( actor )
 	end
 
 	-- count established.
