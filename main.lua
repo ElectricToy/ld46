@@ -866,6 +866,31 @@ function onResourcesCollide( a, b )
 	end
 end
 
+ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 60
+FUEL_LOSS_PER_TICK = 1
+FUEL_LOSS_PER_SECOND = FUEL_LOSS_PER_TICK * 60
+ROBOT_FUEL_PER_WOOD = FUEL_LOSS_PER_SECOND * ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS
+ROBOT_MAX_FUEL = ROBOT_FUEL_PER_WOOD * 2
+
+function onRobotOutOfFuel( actor )
+	trace( 'out of fuel' )
+end
+
+function onRobotCompletedAllRecipes()
+	trace( 'win!' )
+end
+
+function robotTick( actor )
+	actor.fuel = actor.fuel ~= nil and actor.fuel or actor.config.fuel
+	actor.fuel = actor.fuel - FUEL_LOSS_PER_TICK
+
+	if actor.fuel <= 0 then
+		actor.fuel = 0
+		onRobotOutOfFuel( actor )
+	end
+end
+
+
 RESOURCE_MAX_COUNT_DEFAULT = 9
 
 actorConfigurations = {
@@ -901,9 +926,9 @@ actorConfigurations = {
 		draw = drawShadow,
 	},
 	robot = {
+		tick = robotTick,
 		dims = vec2:new( 24, 26 ),
-		ulOffset = vec2:new( 18, 29 ),
-		inert = true,
+		ulOffset = vec2:new( 16, 34 ),
 		nonColliding = true,
 		fadeForPlayer = true,
 		tileSizeX = 2,
@@ -1574,7 +1599,7 @@ function updateActor( actor )
 		if actor.config.tick ~= nil then
 			actor.config.tick( actor )
 		end
-		
+
 		actor.lastPos:set( actor.pos )
 
 		actor.vel = actor.vel - actor.vel * GLOBAL_DRAG
@@ -1745,11 +1770,17 @@ function blockCompleteRecipe( x, y, blockType, blockTypeIndex )
 
 	local creationPosition = creationPositionFromBlockAt( x, y )
 
-	for key, count in pairs( recipe.output ) do
-		for i = 1, count do
-			createActor( key, creationPosition.x, creationPosition.y )
-		end
-	end	
+	if recipe.output then
+		for key, count in pairs( recipe.output ) do
+			for i = 1, count do
+				createActor( key, creationPosition.x, creationPosition.y )
+			end
+		end	
+	end
+
+	if recipe.effect then
+		recipe.effect( x, y, blockType, blockTypeIndex )
+	end
 end
 
 function blockUpdateCooking( x, y, blockType, blockTypeIndex )
@@ -1781,23 +1812,25 @@ function blockCheckRecipes( x, y, blockType, blockTypeIndex )
 		end
 	end)
 
-	for _, recipe in ipairs( recipes ) do
-		local satisfied = true
-		for key, count in pairs( recipe.inputs ) do
-			if availableIngredients[ key ] ~= nil then
-				local availableCount = #availableIngredients[ key ]
-				if( availableCount or 0 ) < count then
+	for i, recipe in ipairs( recipes ) do
+		if recipe.enabled == nil or recipe.enabled then
+			local satisfied = true
+			for key, count in pairs( recipe.inputs ) do
+				if availableIngredients[ key ] ~= nil then
+					local availableCount = #availableIngredients[ key ]
+					if( availableCount or 0 ) < count then
+						satisfied = false
+						break
+					end
+				else
 					satisfied = false
 					break
 				end
-			else
-				satisfied = false
-				break
 			end
-		end
 
-		if satisfied then
-			blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availableIngredients )
+			if satisfied then
+				blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availableIngredients )
+			end
 		end
 	end
 end
@@ -1840,6 +1873,107 @@ function sensorTickOn( x, y, blockType, blockTypeIndex )
 	sensorTick( x, y, blockType, blockTypeIndex, false, blockTypeIndex - 1 )
 end
 
+function reportIfNil( label, value )
+	trace( label .. ' nil? ' .. ( value == nil and 'true' or 'false' ) )
+end
+
+function robotOnCompletedRecipe()
+	-- reportIfNil( 'blockConfigs', blockConfigs )
+	-- reportIfNil( 'robot_base_off', blockConfigs.robot_base_off )
+	-- reportIfNil( 'blockConfigs', blockConfigs.robot_base_off.recipes )
+	-- reportIfNil( '2', blockConfigs.robot_base_off.recipes[ 2 ] )
+
+	local recipes = blockConfigs.robot_base_off.recipes
+
+	assert( robot.recipeSequence ~= nil )
+	assert( recipes[ robot.recipeSequence ] ~= nil )
+	
+	if robot.recipeSequence > 1 then
+		recipes[ robot.recipeSequence ].enabled = false
+	end
+
+	robot.recipeSequence = robot.recipeSequence + 1
+
+	if robot.recipeSequence > #recipes then
+		onRobotCompletedAllRecipes()
+	else
+		recipes[ robot.recipeSequence ].enabled = true
+	end
+end
+
+function robotOnWood( x, y, blockType, blockTypeIndex )
+	trace( 'robotOnWood' )
+	robot.fuel = math.min( ROBOT_MAX_FUEL, robot.fuel + ROBOT_FUEL_PER_WOOD )
+
+	if robot.recipeSequence == nil or robot.recipeSequence == 1 then
+		robot.recipeSequence = 1
+		robotOnCompletedRecipe()
+	end
+end
+function robotOnIron( x, y, blockType, blockTypeIndex )
+	trace( 'robotOnIron' )
+	robotOnCompletedRecipe()
+end
+function robotOnConveyor( x, y, blockType, blockTypeIndex )
+	trace( 'robotOnConveyor' )
+	robotOnCompletedRecipe()
+end
+function robotOnSensor( x, y, blockType, blockTypeIndex )
+	trace( 'robotOnSensor' )
+	robotOnCompletedRecipe()
+end
+function robotOnChip( x, y, blockType, blockTypeIndex )
+	trace( 'robotOnChip' )
+	robotOnCompletedRecipe()
+end
+
+function robotBaseClass()
+	return {
+		sponsoredActorConfig = 'robot',
+		on_version = 290,
+		recipes = {
+			{
+				inputs = { wood = 1 },
+				effect = robotOnWood,
+				duration = 0.25,
+			},
+			{
+				enabled = false,
+				inputs = { iron = 4 },
+				effect = robotOnIron,
+				duration = 0.25,
+			},
+			{
+				enabled = false,
+				inputs = { conveyor = 2 },
+				effect = robotOnConveyor,
+				duration = 0.25,
+			},
+			{
+				enabled = false,
+				inputs = { sensor = 1 },
+				effect = robotOnSensor,
+				duration = 0.25,
+			},
+			{
+				enabled = false,
+				inputs = { chip = 1 },
+				effect = robotOnChip,
+				duration = 1.5,
+			},
+		},	
+		onPlaced = function( x, y, blockType, blockTypeIndex ) 
+			if robot == nil then
+				robot = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE + 22, ( y + 1 ) * PIXELS_PER_TILE - 1 )
+				robot.fuel = ROBOT_MAX_FUEL
+			end
+		end,
+		tick = function( x, y, blockType, blockTypeIndex )
+			blockCheckRecipes( x, y, blockType, blockTypeIndex )
+		end,
+	}
+end
+
 blockData = {}
 
 function dataForBlockAt( x, y )
@@ -1869,24 +2003,34 @@ blockConfigs = {
 		on_version = 516,
 		recipes = {
 			{
-				inputs = { iron = 2, rubber = 2 },
+				inputs = { iron = 3, rubber = 2 },
 				output = { conveyor = 1 },
-				duration = 1,
+				duration = 0.5,
 			},
 			{
-				inputs = { wood = 2, stone = 2, iron = 1 },
+				inputs = { stone = 2, iron = 3 },
 				output = { harvester = 1 },
-				duration = 1,
+				duration = 0.5,
 			},
 			{
-				inputs = { copper = 4, gold = 1 },
+				inputs = { iron = 2, gold = 2 },
 				output = { sensor = 1 },
-				duration = 1,
-			},
+				duration = 0.5,
+			}, 
 			{
 				inputs = { stone = 3, wood = 2 },
 				output = { oven = 1 },
-				duration = 1,
+				duration = 0.5,
+			},
+			{
+				inputs = { oven = 1, copper = 3 },
+				output = { combiner = 1 },
+				duration = 0.5,
+			},
+			{
+				inputs = { copper = 4, gold = 6 },
+				output = { chip = 1 },
+				duration = 0.5,
 			},
 		},
 		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
@@ -1930,15 +2074,11 @@ blockConfigs = {
 	source_gold_ore = { harvestSource = 'gold_ore' }, 
 	source_copper = { harvestSource = 'copper' }, 
 	source_stone = { harvestSource = 'stone' }, 
-	robot_base = {
-		sponsoredActorConfig = 'robot',
-		onPlaced = function( x, y, blockType, blockTypeIndex ) 
-			if robot == nil then
-				robot = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
-			end
-		end,
+	robot_base_off = robotBaseClass(),
+	robot_base_on = {
+		off_version = 288,
 		tick = function( x, y, blockType, blockTypeIndex )
-			blockCheckRecipes( x, y, blockType, blockTypeIndex )
+			blockUpdateCooking( x, y, blockType, blockTypeIndex )
 		end,
 	},
 }
@@ -1999,7 +2139,8 @@ blockTypes = {
 	[518] = blockConfigs.sensor_on,
 	[519] = blockConfigs.harvester,
 
-	[288] = blockConfigs.robot_base,
+	-- [288] = blockConfigs.robot_base_off,
+	[290] = blockConfigs.robot_base_on,
 
 	[480] = blockConfigs.tree_base,
 	[481] = blockConfigs.source_iron_ore,
@@ -2058,6 +2199,10 @@ end
 
 function fixupBlocks()
 	setBlockTypeRange( blockConfigs.ground, 256, 5 )
+
+	blockConfigs.robot_base_off = robotBaseClass()
+	blockTypes[ 288 ] = blockConfigs.robot_base_off
+
 	
 	for _, animSet in pairs( blockAnimSets ) do
 		local animSetBase = animSet.frames[ 1 ]
