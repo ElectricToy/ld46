@@ -10,6 +10,9 @@ filter_mode( "Nearest" )
 
 screen_size( 220, 128 )
 
+WHITE = 0xFFE3E0F2
+
+
 MIN_ACTIVE_BLOCK_INDEX = 256
 
 SPRITE_SHEET_PIXELS_X = 512
@@ -1979,24 +1982,25 @@ function robotOnWood( x, y, blockType, blockTypeIndex )
 	end
 end
 function robotOnIron( x, y, blockType, blockTypeIndex )
-	trace( 'robotOnIron' )
+	-- trace( 'robotOnIron' )
 	robotOnCompletedRecipe()
 end
 function robotOnConveyor( x, y, blockType, blockTypeIndex )
-	trace( 'robotOnConveyor' )
+	-- trace( 'robotOnConveyor' )
 	robotOnCompletedRecipe()
 end
 function robotOnSensor( x, y, blockType, blockTypeIndex )
-	trace( 'robotOnSensor' )
+	-- trace( 'robotOnSensor' )
 	robotOnCompletedRecipe()
 end
 function robotOnChip( x, y, blockType, blockTypeIndex )
-	trace( 'robotOnChip' )
+	-- trace( 'robotOnChip' )
 	robotOnCompletedRecipe()
 end
 
 function robotBaseClass()
 	return {
+		name = 'Rob',
 		sponsoredActorConfig = 'robot',
 		drawRecipes = false,
 		on_version = 290,
@@ -2562,16 +2566,44 @@ function drawHUDBlockInfo()
 	end)
 end
 
+function printRightAligned( text, x, y, color, printFn )
+	( printFn or print )( text, x - #text * 8, y, color )
+end
+
+function printCentered( text, x, y, color, printFn )
+	( printFn or print )( text, x - #text * 4, y, color )
+end
+
+function drawRobotNeed( needRecipe )
+	printRightAligned( 'Rob wants:', screen_wid() - 8, 6, WHITE, printShadowed )
+	drawIngredientList( needRecipe.inputs, screen_wid() - 16 - 8, 12 )
+end
+
+function drawHUDQuest()
+	local robotRecipes = blockConfigs.robot_base_off.recipes
+	assert( robotRecipes ~= nil )
+
+	local sequence = robot.recipeSequence or 1
+	if sequence > #robotRecipes then return end
+
+	local currentNeed = robotRecipes[ sequence ]
+	assert( currentNeed ~= nil )
+
+	drawRobotNeed( currentNeed )
+end
+
 function drawHUD()
 	camera( 0, 0 )
 
 	drawHUDFuelGuage()
 
+	drawHUDQuest()
+
 	drawHUDBlockInfo()
 end
 
 function draw()
-	cls( 0xff000040 )
+	-- cls( 0xff000040 )
 
 	updateViewTransform()
 
