@@ -771,27 +771,27 @@ function updateViewTransform()
 end
 
 function populateWithActors()
-	createActor( 'chip', 40, 50 )
-	createActor( 'iron_ore', 60, 40 )
-	createActor( 'iron_ore', 100, 40 )
-	createActor( 'iron_ore', 120, 40 )
-	createActor( 'iron_ore', 30, 40 )
-	createActor( 'rubber', 60, 60 )
-	createActor( 'rubber', 100, 60 )
-	createActor( 'rubber', 120, 60 )
-	createActor( 'rubber', 30, 60 )
-	createActor( 'wood', 60, 80 )
-	createActor( 'wood', 60, 80 )
-	createActor( 'wood', 100, 80 )
-	createActor( 'wood', 30, 80 )
-	createActor( 'copper', 60, 100 )
-	createActor( 'copper', 60, 100 )
-	createActor( 'copper', 100, 100 )
-	createActor( 'copper', 30, 100 )
-	createActor( 'gold_ore', 60, 110 )
-	createActor( 'gold_ore', 60, 110 )
-	createActor( 'gold_ore', 100, 110 )
-	createActor( 'gold_ore', 30, 110 )
+	-- createActor( 'chip', 40, 50 )
+	-- createActor( 'iron_ore', 60, 40 )
+	-- createActor( 'iron_ore', 100, 40 )
+	-- createActor( 'iron_ore', 120, 40 )
+	-- createActor( 'iron_ore', 30, 40 )
+	-- createActor( 'rubber', 60, 60 )
+	-- createActor( 'rubber', 100, 60 )
+	-- createActor( 'rubber', 120, 60 )
+	-- createActor( 'rubber', 30, 60 )
+	-- createActor( 'wood', 60, 80 )
+	-- createActor( 'wood', 60, 80 )
+	-- createActor( 'wood', 100, 80 )
+	-- createActor( 'wood', 30, 80 )
+	-- createActor( 'copper', 60, 100 )
+	-- createActor( 'copper', 60, 100 )
+	-- createActor( 'copper', 100, 100 )
+	-- createActor( 'copper', 30, 100 )
+	-- createActor( 'gold_ore', 60, 110 )
+	-- createActor( 'gold_ore', 60, 110 )
+	-- createActor( 'gold_ore', 100, 110 )
+	-- createActor( 'gold_ore', 30, 110 )
 end
 
 function startGame()
@@ -819,7 +819,7 @@ function startGame()
 	color_multiplied_b_smoothed = 0
 
 
-	player = createActor( 'player', 2 * PIXELS_PER_TILE, 3 * PIXELS_PER_TILE )
+	player = createActor( 'player', 9 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
 
 	populateWithActors()
 
@@ -884,7 +884,7 @@ ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 60
 FUEL_LOSS_PER_TICK = 1
 FUEL_LOSS_PER_SECOND = FUEL_LOSS_PER_TICK * 60
 ROBOT_FUEL_PER_WOOD = FUEL_LOSS_PER_SECOND * ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS
-ROBOT_MAX_FUEL = ROBOT_FUEL_PER_WOOD * 0.5
+ROBOT_MAX_FUEL = ROBOT_FUEL_PER_WOOD * 4
 MAX_FUEL_FOR_NEEDINESS = FUEL_LOSS_PER_SECOND * 30
 MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY = FUEL_LOSS_PER_SECOND * 10
 
@@ -902,8 +902,10 @@ function robotTick( actor )
 	actor.fuel = actor.fuel ~= nil and actor.fuel or actor.config.fuel
 	actor.fuel = actor.fuel - FUEL_LOSS_PER_TICK
 
-	local fuelNeediness = clamp( proportion( actor.fuel, MAX_FUEL_FOR_NEEDINESS, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY ) ^ 2, 0, 1 )
+	local fuelNeediness = clamp( proportion( actor.fuel, MAX_FUEL_FOR_NEEDINESS, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY ), 0, 1 ) ^ 2
 	
+	-- trace( actor.fuel .. ' ' .. fuelNeediness)
+
 	chromatic_aberration_ = lerp( DEFAULT_CHROMATIC_ABERRATION, 1.0, fuelNeediness )
 	barrel_ = 				lerp( DEFAULT_BARREL, 				0.7, fuelNeediness )
 	bloom_intensity_ = 		lerp( DEFAULT_BLOOM_INTENSITY, 		0.2, fuelNeediness )
@@ -1224,7 +1226,7 @@ function createActor( configKey, x, y )
 		lastPos = vec2:new( x, y ),
 		vel = vec2:new( 0, 0 ),
 		thrust = vec2:new( 0, 0 ),
-		heading = vec2:new( -1, 0 ),
+		heading = vec2:new( 0, 1 ),
 		animFrame = 0,
 		lastFrame = 0,
 		occluding = false,
@@ -1403,11 +1405,15 @@ function actorULOffset( actor )
 	return offset + vec2:new( 0, z )
 end
 
+function drawCount( count, x, y )
+	print( '' .. count, round( x ), round( y ))
+end
+
 function drawActorCount( actor )
 	if actor.count ~= nil and actor.count > 1 then
 		local actorBounds = actorVisualBounds( actor )
 		local countPos = vec2:new( actorBounds.right - 4, actorBounds.top )
-		print( '' .. actor.count, round( countPos.x ), round( countPos.y ))
+		drawCount( actor.count, countPos.x, countPos.y )
 	end
 end
 
@@ -1864,18 +1870,50 @@ function blockCheckRecipes( x, y, blockType, blockTypeIndex )
 	end
 end
 
+local DEFAULT_HARVEST_RATE = 5
+
 function harvesterTick( x, y, blockType, blockTypeIndex )
 	-- get the block just north.
 
 	withBlockTypeAt( x, y - 1, function( neighborBlockType, neighborBlockTypeIndex )
 		withBaseBlockType( neighborBlockTypeIndex, function( neighborBlockTypeBase, neighborBaseBlockTypeIndex )
 			if neighborBlockTypeBase.harvestSource ~= nil then
-				local harvestRate = neighborBlockTypeBase.harvestRate or 1 * 60
+				local harvestRate = ( neighborBlockTypeBase.harvestRate or DEFAULT_HARVEST_RATE ) * 60
 				if ticks % harvestRate == 0 then
 					local creationPosition = creationPositionFromBlockAt( x, y )
 					createActor( neighborBlockTypeBase.harvestSource, creationPosition.x, creationPosition.y )
 				end
 			end
+		end)
+	end)
+end
+
+function conveyorRotatedVersion( fromBlockTypeIndex, turnsClockwise )
+	local MIN = 256
+	local MAX = 256 + 32*4
+
+	local turned = fromBlockTypeIndex + turnsClockwise * 32
+
+	turned = MIN + ( turned - MIN ) % ( MAX - MIN )
+
+	return turned
+end
+
+function onConveyorTriggered( x, y, blockType, blockTypeIndex, turningOn )
+	if dataForBlockAt( x, y ).triggeredOn ~= turningOn then
+		mset( x, y, conveyorRotatedVersion( blockTypeIndex, turningOn and 1 or -1 ))
+	end
+end
+
+function sensorChanged( x, y, blockType, blockTypeIndex, turningOn )
+	-- trigger or untrigger the south block
+	withBlockTypeAt( x, y + 1, function( southernBlockType, southernBlockTypeIndex )
+		withBaseBlockType( southernBlockTypeIndex, function( southernBlockTypeBase, southernBaseBlockTypeIndex )
+
+			if southernBlockTypeBase.onTriggered ~= nil then
+				southernBlockTypeBase.onTriggered( x, y + 1, southernBlockType, southernBlockTypeIndex, turningOn )
+			end
+			dataForBlockAt( x, y + 1 ).triggeredOn = turningOn
 		end)
 	end)
 end
@@ -1890,6 +1928,7 @@ function sensorTick( x, y, blockType, blockTypeIndex, triggerIfSensed, toTypeIfT
 	end)		
 
 	if triggerIfSensed == ( sensedActor ~= nil ) then
+		sensorChanged( x, y, blockType, blockTypeIndex, triggerIfSensed )
 		mset( x, y, toTypeIfTriggered )
 	end
 end
@@ -1931,7 +1970,7 @@ function robotOnCompletedRecipe()
 end
 
 function robotOnWood( x, y, blockType, blockTypeIndex )
-	trace( 'robotOnWood' )
+	-- trace( 'robotOnWood' )
 	robot.fuel = math.min( ROBOT_MAX_FUEL, robot.fuel + ROBOT_FUEL_PER_WOOD )
 
 	if robot.recipeSequence == nil or robot.recipeSequence == 1 then
@@ -1959,6 +1998,7 @@ end
 function robotBaseClass()
 	return {
 		sponsoredActorConfig = 'robot',
+		drawRecipes = false,
 		on_version = 290,
 		recipes = {
 			{
@@ -1974,13 +2014,13 @@ function robotBaseClass()
 			},
 			{
 				enabled = false,
-				inputs = { conveyor = 2 },
+				inputs = { conveyor = 6 },
 				effect = robotOnConveyor,
 				duration = 0.25,
 			},
 			{
 				enabled = false,
-				inputs = { sensor = 1 },
+				inputs = { sensor = 2 },
 				effect = robotOnSensor,
 				duration = 0.25,
 			},
@@ -2011,23 +2051,33 @@ function dataForBlockAt( x, y )
 	return blockData[ index ]
 end
 
+SENSOR_EXPLANATION = { 'Detects items.', 'Triggers Conveyors.' }
+HARVESTER_EXPLANATION = 'Gathers resources.'
+COMBINER_EXPLANATION = { 'Combines resources', 'to make new ones.' }
+OVEN_EXPLANATION = 'Turns ore into metal.'
 
 blockConfigs = {
 	ground = {
 		mayBePlacedUpon = true,
 	},
 	conveyor = {
+		name = 'Conveyor',
 		actorConfigName = 'conveyor',
 		conveyor = { direction = vec2:new( 0, -1 )},
 		onPlaced = conveyorOnPlaced,
 		tick = conveyorTick,
+		onTriggered = onConveyorTriggered,
 	},
 	harvester = {
+		name = 'Harvester',
+		explanation = HARVESTER_EXPLANATION,
 		actorConfigName = 'harvester',
 		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
 		tick = harvesterTick,
 	},
 	combiner_off = {
+		name = 'Combiner',
+		explanation = COMBINER_EXPLANATION,
 		actorConfigName = 'combiner',
 		on_version = 516,
 		recipes = {
@@ -2068,6 +2118,8 @@ blockConfigs = {
 		end, 
 	},
 	combiner_on = {
+		name = 'Combiner',
+		explanation = COMBINER_EXPLANATION,
 		actorConfigName = 'combiner',
 		off_version = 515,
 		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
@@ -2076,11 +2128,15 @@ blockConfigs = {
 		end,
 	},
 	sensor_off = {
+		name = 'Sensor',
+		explanation = SENSOR_EXPLANATION,
 		actorConfigName = 'sensor',
 		on_version = 518,
 		tick = sensorTickOff,
 	},
 	sensor_on = {
+		name = 'Sensor',
+		explanation = SENSOR_EXPLANATION,
 		actorConfigName = 'sensor',
 		off_version = 517,
 		tick = sensorTickOn,
@@ -2088,6 +2144,7 @@ blockConfigs = {
 	tree_base = {
 		sponsoredActorConfig = 'tree',
 		harvestSource = 'wood',
+		harvestRate = 10,
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
 			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
 		end,
@@ -2095,16 +2152,18 @@ blockConfigs = {
 	rubber_tree_base = {
 		sponsoredActorConfig = 'tree_rubber',
 		harvestSource = 'rubber',
+		harvestRate = 12,
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
 			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
 		end,
 	},
-	source_iron_ore = { harvestSource = 'iron_ore' }, 
-	source_gold_ore = { harvestSource = 'gold_ore' }, 
-	source_copper = { harvestSource = 'copper' }, 
-	source_stone = { harvestSource = 'stone' }, 
+	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 15 },
+	source_gold_ore = { name = 'Gold Ore', harvestSource = 'gold_ore', harvestRate = 30 }, 
+	source_copper = { name = 'Copper', harvestSource = 'copper', harvestRate = 20 }, 
+	source_stone = { name = 'Stone', harvestSource = 'stone', harvestRate = 12 }, 
 	robot_base_off = robotBaseClass(),
 	robot_base_on = {
+		drawRecipes = false,
 		off_version = 288,
 		tick = function( x, y, blockType, blockTypeIndex )
 			blockUpdateCooking( x, y, blockType, blockTypeIndex )
@@ -2137,6 +2196,8 @@ blockTypes = {
 	},
 
 	[512] = {
+		name = 'Oven',
+		explanation = OVEN_EXPLANATION,
 		actorConfigName = 'oven',
 		on_version = 513,
 		recipes = {
@@ -2156,6 +2217,8 @@ blockTypes = {
 		end,
 	},
 	[513] = {
+		name = 'Oven',
+		explanation = OVEN_EXPLANATION,
 		actorConfigName = 'oven',
 		off_version = 512,
 		tick = function( x, y, blockType, blockTypeIndex )
@@ -2406,6 +2469,107 @@ function drawActors()
 
 end
 
+function drawHUDFuelGuage()
+	local screen_mid = screen_wid() // 2
+	local fuelGuageMaxWid = screen_wid() * 0.65
+	local guageWid = fuelGuageMaxWid * clamp( proportion( robot.fuel, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY, ROBOT_MAX_FUEL ), 0, 1 )
+	local halfWid = guageWid // 2
+	rectfill( screen_mid - halfWid, screen_hgt() - 5, screen_mid + halfWid, screen_hgt() - 3, 0xFFC23324 )
+end
+
+RECIPE_TEXT_COLOR = 0xFFE3E0F2
+RECIPE_TEXT_OFFSET_Y = 4
+
+function drawResourceIcon( resourceKey, x, y )
+	local config = actorConfigurations[ resourceKey ]
+	local sprite = config.animations.idle.frames[1]
+	if sprite == nil then return end
+
+	spr( sprite, x, y )
+
+	return 8
+end
+
+function drawIngredientList( ingredients, x, y )
+	local i = 1
+	for key, count in pairs( ingredients ) do
+		if i > 1 then
+			print( '+', x, y + RECIPE_TEXT_OFFSET_Y, RECIPE_TEXT_COLOR )
+			x = x + 8
+		end
+
+		x = x + drawResourceIcon( key, x, y ) + 4
+
+		if count > 1 then
+			drawCount( count, x, y )
+		end
+		x = x + 8
+
+		i = i + 1
+	end
+
+	return x
+end
+
+function drawBlockRecipes( blockType )
+
+	local y = 36
+	for _, recipe in ipairs( blockType.recipes ) do
+		if recipe.output ~= nil then
+			local x = drawIngredientList( recipe.output, 10, y ) + 2
+
+			print( '=', x, y + RECIPE_TEXT_OFFSET_Y, RECIPE_TEXT_COLOR )
+			x = x + 7
+
+			drawIngredientList( recipe.inputs, x, y )
+
+			y = y + 14
+		end
+	end
+end
+
+function printShadowed( text, x, y, color )
+	print( text, x, y+1, 0xFF161C21 )
+	print( text, x, y, color )
+end
+
+function drawHUDBlockInfo()
+	local screen_mid = screen_wid() // 2
+
+	local x = worldToTile( player.pos.x )
+	local y = worldToTile( player.pos.y )
+
+	withBlockTypeAt( x, y, function( blockType, blockTypeIndex )
+		withBaseBlockType( blockTypeIndex, function( blockTypeBase, baseBlockTypeIndex )
+			printShadowed( blockTypeBase.name or '', 6, 6, 0xFFE3E0F2 )
+
+			if type( blockTypeBase.explanation ) == 'table' then
+				for _, text in ipairs( blockTypeBase.explanation ) do
+					print( text, nil, nil, 0xFFB0B8BF )
+				end
+			else
+				print( blockTypeBase.explanation or '', nil, nil, 0xFFB0B8BF )
+			end
+
+			if blockTypeBase.drawRecipes ~= false and blockTypeBase.recipes ~= nil then
+				drawBlockRecipes( blockTypeBase )
+			end
+
+			if blockTypeBase.draw ~= nil then
+				blockTypeBase.draw()
+			end
+		end)
+	end)
+end
+
+function drawHUD()
+	camera( 0, 0 )
+
+	drawHUDFuelGuage()
+
+	drawHUDBlockInfo()
+end
+
 function draw()
 	cls( 0xff000040 )
 
@@ -2415,6 +2579,8 @@ function draw()
 	drawMap()
 
 	drawActors()
+
+	drawHUD()
 
 	camera( 0, 0 )
 	drawDebug()
