@@ -1739,8 +1739,28 @@ function harvesterTick( x, y, blockType, blockTypeIndex )
 			end
 		end)
 	end)
+end
 
-	-- TODO
+function sensorTick( x, y, blockType, blockTypeIndex, toTypeIfTriggered )
+	local sensedActor = nil
+	forEachActorOnBlock( x, y - 1, function( actor )
+		if  not actor.held and
+			not actor.config.invisibleToSensors then
+			sensedActor = actor
+		end
+	end)		
+
+	if sensedActor ~= nil then
+		mset( x, y, toTypeIfTriggered )
+	end
+end
+
+function sensorTickOff( x, y, blockType, blockTypeIndex )
+	sensorTick( x, y, blockType, blockTypeIndex, blockTypeIndex + 1 )
+end
+
+function sensorTickOn( x, y, blockType, blockTypeIndex )
+	sensorTick( x, y, blockType, blockTypeIndex, blockTypeIndex - 1 )
 end
 
 blockData = {}
@@ -1808,16 +1828,12 @@ blockConfigs = {
 	sensor_off = {
 		actorConfigName = 'sensor',
 		on_version = 518,
-		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
-		tick = function( x, y, blockType, blockTypeIndex )
-		end,
+		tick = sensorTickOff,
 	},
 	sensor_on = {
 		actorConfigName = 'sensor',
 		off_version = 517,
-		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
-		tick = function( x, y, blockType, blockTypeIndex )
-		end,
+		tick = sensorTickOn,
 	},
 	tree_base = {
 		sponsoredActorConfig = 'tree',
