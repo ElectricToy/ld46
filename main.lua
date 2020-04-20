@@ -725,13 +725,15 @@ end
 
 function startGame()
 
+	blockData = {}
+	
 	restoreInitialMap()
 
 	actors = {}
 	robot = nil
 	player = nil
 
-	fixupBlockData()
+	fixupBlocks()
 
 	color_multiplied_r = 1
 	color_multiplied_g = 1
@@ -782,7 +784,7 @@ function onResourcesCollide( a, b )
 	end
 end
 
-RESOURCE_MAX_COUNT_DEFAULT = 99
+RESOURCE_MAX_COUNT_DEFAULT = 9
 
 actorConfigurations = {
 	player = {
@@ -1460,8 +1462,8 @@ blockAnimSets = {
 	{ speed = 2, frames = range( 357, 357+3 ) },
 	{ speed = 2, frames = range( 361, 361+3 ) },
 
-	{ speed = 2, frames = range( 513, 514 ) },
-	{ speed = 2, frames = range( 519, 520 ) },
+	{ speed = 6, frames = range( 513, 514 ) },
+	{ speed = 6, frames = range( 519, 520 ) },
 }
 
 function worldTilePosToIndex( x, y )
@@ -1542,9 +1544,7 @@ function consumeActor( actor )
 	end
 end
 
-function blockStartRecipe( x, y, recipe, availableIngredients )
-	trace( 'start' )
-
+function blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availableIngredients )
 	-- consume ingredients
 	for key, count in pairs( recipe.inputs ) do
 		for _, actor in ipairs( availableIngredients[ key ] ) do
@@ -1553,7 +1553,18 @@ function blockStartRecipe( x, y, recipe, availableIngredients )
 	end
 
 	-- cook
-	-- instant for now TODO
+	local data = dataForBlockAt( x, y )
+	data.doneTick = ticks + recipe.duration * 60
+	data.recipe = recipe
+
+	setBlockType( x, y, blockType.on_version )
+end
+
+function blockCompleteRecipe( x, y, blockType, blockTypeIndex )
+
+	local data = dataForBlockAt( x, y )
+	local recipe = data.recipe
+	if recipe == nil then return end
 
 	local creationPosition = tileCenterToWorldPos( x, y ) + vec2:new( 0, 14 )
 
@@ -1561,6 +1572,17 @@ function blockStartRecipe( x, y, recipe, availableIngredients )
 		for i = 1, count do
 			createActor( key, creationPosition.x, creationPosition.y )
 		end
+	end	
+end
+
+function blockUpdateCooking( x, y, blockType, blockTypeIndex )
+	local data = dataForBlockAt( x, y )
+	if data == nil then return end
+
+	local doneTick = data.doneTick or ticks
+	if ticks >= doneTick then
+		blockCompleteRecipe( x, y, blockType, blockTypeIndex )
+		setBlockType( x, y, blockType.off_version )
 	end
 end
 
@@ -1598,26 +1620,19 @@ function blockCheckRecipes( x, y, blockType, blockTypeIndex )
 		end
 
 		if satisfied then
-			blockStartRecipe( x, y, recipe, availableIngredients )
+			blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availableIngredients )
 		end
 	end
 end
 
-function ovenClass( callback )
-	local class = {
-		actorConfigName = 'oven',
-		recipes = {
-			{
-				inputs = { iron_ore = 2 },
-				output = { iron = 1 },
-				duration = 2,
-			},
-		},
-		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
-	}
-	if callback ~= nil then callback( class ) end
-	return class
+blockData = {}
+
+function dataForBlockAt( x, y )
+	local index = worldTilePosToIndex( x, y )
+	if blockData[ index ] == nil then blockData[ index ] = {} end
+	return blockData[ index ]
 end
+
 
 blockConfigs = {
 	ground = {
@@ -1639,12 +1654,14 @@ blockConfigs = {
 		actorConfigName = 'combiner',
 		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
 		tick = function( x, y, blockType, blockTypeIndex )
+			blockCheckRecipes( x, y, blockType, blockTypeIndex )
 		end,
 	},
 	combiner_on = {
 		actorConfigName = 'combiner',
 		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
 		tick = function( x, y, blockType, blockTypeIndex )
+			blockCheckRecipes( x, y, blockType, blockTypeIndex )
 		end,
 	},
 	sensor_off = {
@@ -1666,6 +1683,7 @@ blockConfigs = {
 			end
 		end,
 		tick = function( x, y, blockType, blockTypeIndex )
+			blockCheckRecipes( x, y, blockType, blockTypeIndex )
 		end,
 	},
 }
@@ -1694,18 +1712,27 @@ blockTypes = {
 		baseType = 261+32*3,
 	},
 
-	[512] = ovenClass( function( class )
-		class.on_version = 513
-		class.tick = function( x, y, blockType, blockTypeIndex )
+	[512] = {
+		actorConfigName = 'oven',
+		on_version = 513,
+		recipes = {
+			{
+				inputs = { iron_ore = 2 },
+				output = { iron = 1 },
+				duration = 2,
+			},
+		},
+		tick = function( x, y, blockType, blockTypeIndex )
 			blockCheckRecipes( x, y, blockType, blockTypeIndex )
-		end
-	end),
-	[513] = ovenClass( function( class )
-		class.off_version = 512
-		class.tick = function( x, y, blockType, blockTypeIndex )
-			-- TODO
-		end
-	end),
+		end,
+	},
+	[513] = {
+		actorConfigName = 'oven',
+		off_version = 512,
+		tick = function( x, y, blockType, blockTypeIndex )
+			blockUpdateCooking( x, y, blockType, blockTypeIndex )
+		end,
+	},
 	[515] = blockConfigs.combiner_off,
 	[516] = blockConfigs.combiner_on,
 	[517] = blockConfigs.sensor_off,
@@ -1762,7 +1789,7 @@ function forEachBlock( callback )
 	end
 end
 
-function fixupBlockData()
+function fixupBlocks()
 	setBlockTypeRange( blockConfigs.ground, 256, 5 )
 	
 	for _, animSet in pairs( blockAnimSets ) do
@@ -1794,10 +1821,6 @@ function updateBlock( x, y, blockType, blockTypeIndex )
 	assert( blockType )
 
 	withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
-		if baseBlockType.tick then
-			baseBlockType.tick( x, y, baseBlockType, baseBlockTypeIndex )
-		end
-		
 		local animSet = blockType.animSet
 		if animSet then
 			local changeSpeed = animSet.speed or 4
@@ -1807,6 +1830,10 @@ function updateBlock( x, y, blockType, blockTypeIndex )
 
 			mset( x, y, block )
 		end
+
+		if baseBlockType.tick then
+			baseBlockType.tick( x, y, baseBlockType, baseBlockTypeIndex )
+		end		
 	end)
 end
 
