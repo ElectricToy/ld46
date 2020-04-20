@@ -593,6 +593,8 @@ function tryDropHeldItem( options )
 			-- no count, or we're dropping them all. don't create a new item, just drop this one.
 
 			item.pos:set( dropPoint )
+			item.lastPos:set( item.pos )
+			item.vel:set( 0 )
 			item.held = false	-- probably moot, but just in case
 			item.ulOffset = nil
 			item.inert = false
@@ -815,6 +817,8 @@ function combineResources( a, b )
 
 	a.count = math.min( total, a.config.maxCount or RESOURCE_MAX_COUNT_DEFAULT )
 	a.pos:set( b.pos )
+	a.lastPos:set( a.pos )
+	a.vel:set( 0 )
 
 	deleteActor( b )
 end
@@ -1639,18 +1643,16 @@ function ingredientCount( list, configKey )
 end
 
 function consumeActor( actor )
-	if ( actor.count or 1 ) <= 1 then
-		deleteActor( actor )
-	else
-		actorCountAdd( actor, -1 )
-	end
+	actorCountAdd( actor, -1 )
 end
 
 function blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availableIngredients )
 	-- consume ingredients
 	for key, count in pairs( recipe.inputs ) do
 		for _, actor in ipairs( availableIngredients[ key ] ) do
+			if count <= 0 then break end
 			consumeActor( actor )
+			count = count - 1
 		end
 	end
 
@@ -1747,7 +1749,7 @@ function harvesterTick( x, y, blockType, blockTypeIndex )
 	end)
 end
 
-function sensorTick( x, y, blockType, blockTypeIndex, toTypeIfTriggered )
+function sensorTick( x, y, blockType, blockTypeIndex, triggerIfSensed, toTypeIfTriggered )
 	local sensedActor = nil
 	forEachActorOnBlock( x, y - 1, function( actor )
 		if  not actor.held and
@@ -1756,17 +1758,17 @@ function sensorTick( x, y, blockType, blockTypeIndex, toTypeIfTriggered )
 		end
 	end)		
 
-	if sensedActor ~= nil then
+	if triggerIfSensed == ( sensedActor ~= nil ) then
 		mset( x, y, toTypeIfTriggered )
 	end
 end
 
 function sensorTickOff( x, y, blockType, blockTypeIndex )
-	sensorTick( x, y, blockType, blockTypeIndex, blockTypeIndex + 1 )
+	sensorTick( x, y, blockType, blockTypeIndex, true, blockTypeIndex + 1 )
 end
 
 function sensorTickOn( x, y, blockType, blockTypeIndex )
-	sensorTick( x, y, blockType, blockTypeIndex, blockTypeIndex - 1 )
+	sensorTick( x, y, blockType, blockTypeIndex, false, blockTypeIndex - 1 )
 end
 
 blockData = {}
