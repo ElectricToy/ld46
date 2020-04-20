@@ -1210,9 +1210,17 @@ function createShadowForActor( actor )
 end
 
 function deleteActor( actor )
+	assert( actor ~= nil )
+
+	if actor.deleted then return end
+
+	-- trace( 'deleting actor ' .. actor.configKey )
+
 	if actor.shadow ~= nil then
+		actor.shadow.shadowHost = nil
 		deleteActor( actor.shadow )
 	end
+
 	actor.deleted = true
 	tableRemoveValue( actors, actor )
 end
@@ -2018,7 +2026,7 @@ function robotBaseClass()
 			},
 			{
 				enabled = false,
-				inputs = { conveyor = 6 },
+				inputs = { conveyor = 9 },
 				effect = robotOnConveyor,
 				duration = 0.25,
 			},
@@ -2111,7 +2119,7 @@ blockConfigs = {
 				duration = 0.5,
 			},
 			{
-				inputs = { copper = 4, gold = 6 },
+				inputs = { copper = 9, gold = 9 },
 				output = { chip = 1 },
 				duration = 0.5,
 			},
