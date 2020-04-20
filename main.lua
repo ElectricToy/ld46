@@ -553,7 +553,7 @@ function playerTryPlaceAsBlock( item, direction, position )
 	if placementX ~= nil then
 		
 		-- succeeded
-		if item.deleted then 
+		if item.deleted then
 			player.heldItem = nil
 		end
 
@@ -592,14 +592,7 @@ function tryDropHeldItem( options )
 		else
 			-- no count, or we're dropping them all. don't create a new item, just drop this one.
 
-			item.pos:set( dropPoint )
-			item.lastPos:set( item.pos )
-			item.vel:set( 0 )
-			item.held = false	-- probably moot, but just in case
-			item.ulOffset = nil
-			item.inert = false
-			item.nonColliding = false
-			player.heldItem = nil
+			makeNotHeld( item, dropPoint )
 		end
 	end
 end
@@ -634,12 +627,27 @@ function makeHeld( item )
 	item.held = true
 	item.inert = true
 	item.nonColliding = true
-	item.ulOffset = item.config.ulOffset + vec2:new( 0, 16 )
+	item.z = 0
 	item.vel = vec2:new( 0, 0)
 	item.lastPos = vec2:new( x, y )
 	item.vel = vec2:new( 0, 0 )
 	item.thrust = vec2:new( 0, 0 )
 	item.heading = vec2:new( -1, 0 )
+
+	createShadowForActor( item )
+end
+
+function makeNotHeld( item, dropPoint )
+	item.held = false
+	item.pos:set( dropPoint )
+	item.lastPos:set( item.pos )
+	item.vel:set( 0 )
+	item.ulOffset = nil
+	item.z = 0
+	item.inert = false
+	item.nonColliding = false
+	if item.shadow ~= nil then deleteActor( item.shadow ) end
+	player.heldItem = nil
 end
 
 function tryPickupActor( byActor )
@@ -796,12 +804,29 @@ function startGame()
 	updateViewTransform()
 end
 
+function updateShadow( actor )
+	if actor.shadowHost == nil then return end
+	actor.pos:set( actor.shadowHost.pos )
+end
+
+function drawShadow( actor )
+	local outerRadius = math.min( actor.shadowHost.config.dims.x, actor.shadowHost.config.dims.y ) * 0.5
+	local innerRadius = outerRadius * 0.75
+	fillp( ~0x8421 )
+	circ( actor.pos.x, actor.pos.y, outerRadius, 0xFF000000, outerRadius - innerRadius )
+
+	fillp( 0xA5A5 )
+	circfill( actor.pos.x, actor.pos.y, innerRadius, 0xFF000000 )
+	fillp( 0 )
+end
+
 GLOBAL_DRAG = 0.175
 
 function updateHeldItem( holder, item )
 	item.pos = lerp( item.pos, holder.pos + vec2:new( 0, 1 + math.sin( ticks * 0.06 ) * 1.5 ), 0.08 )
 	item.lastPos:set( item.pos )
 	item.vel:set( 0, 0 )
+	item.z = lerp( item.z or 0, 16, 0.08 )
 end
 
 function updatePlayer( actor )
@@ -856,6 +881,16 @@ actorConfigurations = {
 			return animName .. '_' .. ( self.heading.y < 0 and 'north' or 'south' )
 		end,
 		tick = updatePlayer,
+	},
+	shadow = {
+		dims = vec2:new( 0, 0 ),
+		ulOffset = vec2:new( 0, 8 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		nonColliding = true,
+		inert = false,
+		tick = updateShadow,
+		draw = drawShadow,
 	},
 	robot = {
 		dims = vec2:new( 24, 26 ),
@@ -932,6 +967,7 @@ actorConfigurations = {
 	conveyor = {
 		mayBePickedUp = true,
 		mayCombine = true,
+		fadeForPlayer = true,
 		convertToBlockWhenPossible = true,
 		blockPlacementType = { 261, 261+32, 261+32*2, 261+32*3 } ,
 		dims = vec2:new( 16, 16 ),
@@ -945,6 +981,7 @@ actorConfigurations = {
 	oven = {
 		mayBePickedUp = true,
 		mayCombine = true,
+		fadeForPlayer = true,
 		convertToBlockWhenPossible = true,
 		blockPlacementType = { 512, 512, 512, 512 } ,
 		dims = vec2:new( 16, 16 ),
@@ -958,6 +995,7 @@ actorConfigurations = {
 	combiner = {
 		mayBePickedUp = true,
 		mayCombine = true,
+		fadeForPlayer = true,
 		convertToBlockWhenPossible = true,
 		blockPlacementType = { 515, 515, 515, 515 } ,
 		dims = vec2:new( 16, 16 ),
@@ -971,6 +1009,7 @@ actorConfigurations = {
 	sensor = {
 		mayBePickedUp = true,
 		mayCombine = true,
+		fadeForPlayer = true,
 		convertToBlockWhenPossible = true,
 		blockPlacementType = { 517, 517, 517, 517 },
 		dims = vec2:new( 16, 16 ),
@@ -984,6 +1023,7 @@ actorConfigurations = {
 	harvester = {
 		mayBePickedUp = true,
 		mayCombine = true,
+		fadeForPlayer = true,
 		convertToBlockWhenPossible = true,
 		blockPlacementType = { 519, 519, 519, 519 } ,
 		dims = vec2:new( 16, 16 ),
@@ -1097,7 +1137,15 @@ actorConfigurations = {
 	},
 }
 
+function createShadowForActor( actor )
+	actor.shadow = createActor( 'shadow', actor.pos.x, actor.pos.y )
+	actor.shadow.shadowHost = actor
+end
+
 function deleteActor( actor )
+	if actor.shadow ~= nil then
+		deleteActor( actor.shadow )
+	end
 	actor.deleted = true
 	tableRemoveValue( actors, actor )
 end
@@ -1189,9 +1237,9 @@ end
 
 function actorOccludingBounds( actor )
 	return {
-		left = actor.pos.x - actor.config.dims.x / 4,
+		left = actor.pos.x - actor.config.dims.x / 2,
 		top =  actor.pos.y - actor.config.dims.y,
-		right = actor.pos.x + actor.config.dims.x / 4,
+		right = actor.pos.x + actor.config.dims.x / 2,
 		bottom = actor.pos.y,
 	}
 end
@@ -1263,7 +1311,7 @@ function actorOccludesPlayer( actor )
 	if player.pos.y > actor.pos.y then return false end
 
 	local myBounds = actorOccludingBounds( actor )
-	local playerBounds = expandContractRect( actorBounds( player ), 16 )
+	local playerBounds = expandContractRect( actorOccludingBounds( player ), 0 )
 
 	return rectsOverlap( myBounds, playerBounds )
 end
@@ -1286,10 +1334,29 @@ function actorOpacityForDither( actor )
 end
 
 function actorULOffset( actor )
-	return actor.ulOffset or actor.config.ulOffset
+	local offset = actor.ulOffset or actor.config.ulOffset
+	assert( offset )
+
+	local z = actor.z or 0
+	return offset + vec2:new( 0, z )
+end
+
+function drawActorCount( actor )
+	if actor.count ~= nil and actor.count > 1 then
+		local actorBounds = actorVisualBounds( actor )
+		local countPos = vec2:new( actorBounds.right - 4, actorBounds.top )
+		print( '' .. actor.count, round( countPos.x ), round( countPos.y ))
+	end
 end
 
 function drawActor( actor )
+	local abortDraw = false
+	if actor.config.draw ~= nil then
+		abortDraw = actor.config.draw( actor )
+	end
+
+	if abortDraw then return end
+
 	local animation = currentAnimation( actor )
 	if animation == nil then return end
 
@@ -1318,13 +1385,7 @@ function drawActor( actor )
 
 	fillp( 0 )
 
-	-- draw count
-
-	if actor.count ~= nil and actor.count > 1 then
-		local actorBounds = actorVisualBounds( actor )
-		local countPos = vec2:new( actorBounds.right - 4, actorBounds.top )
-		print( '' .. actor.count, round( countPos.x ), round( countPos.y ))
-	end
+	drawActorCount( actor )
 end
 
 -- GLOBALS
@@ -2146,7 +2207,7 @@ function drawActors()
 	-- count occluders
 	local numOccludingActors = 0
 	for _, actor in ipairs( drawnActors ) do
-		actor.occluding = actor.config.fadeForPlayer and actorOccludesPlayer( actor )
+		actor.occluding = actor.config.fadeForPlayer and not actor.held and actorOccludesPlayer( actor )
 		if actor.occluding then
 			numOccludingActors = numOccludingActors + 1
 		end
