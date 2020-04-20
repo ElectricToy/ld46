@@ -228,8 +228,13 @@ function vec2:angle_between(v1, v2)
 end
 
 function vec2:set(x, y)
-  self.x = x
-  self.y = y
+	if type( x ) == 'table' then
+		self.x = x.x
+		self.y = x.y
+	else
+		self.x = x
+		self.y = y ~= nil and y or x
+	end
 end
 
 function vec2:equals(o)
@@ -587,7 +592,7 @@ function tryDropHeldItem( options )
 		else
 			-- no count, or we're dropping them all. don't create a new item, just drop this one.
 
-			item.pos:set( dropPoint.x, dropPoint.y )
+			item.pos:set( dropPoint )
 			item.held = false	-- probably moot, but just in case
 			item.ulOffset = nil
 			item.inert = false
@@ -793,7 +798,7 @@ GLOBAL_DRAG = 0.175
 
 function updateHeldItem( holder, item )
 	item.pos = lerp( item.pos, holder.pos + vec2:new( 0, 1 + math.sin( ticks * 0.06 ) * 1.5 ), 0.08 )
-	item.lastPos:set( item.pos.x, item.pos.y )
+	item.lastPos:set( item.pos )
 	item.vel:set( 0, 0 )
 end
 
@@ -809,6 +814,7 @@ function combineResources( a, b )
 	local total = ( a.count or 1 ) + ( b.count or 1 )
 
 	a.count = math.min( total, a.config.maxCount or RESOURCE_MAX_COUNT_DEFAULT )
+	a.pos:set( b.pos )
 
 	deleteActor( b )
 end
@@ -1496,7 +1502,7 @@ function updateActor( actor )
 			actor.config.tick( actor )
 		end
 		
-		actor.lastPos:set( actor.pos.x, actor.pos.y )
+		actor.lastPos:set( actor.pos )
 
 		actor.vel = actor.vel - actor.vel * GLOBAL_DRAG
 		actor.pos = actor.pos + actor.vel
