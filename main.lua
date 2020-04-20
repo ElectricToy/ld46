@@ -890,6 +890,8 @@ MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY = FUEL_LOSS_PER_SECOND * 10
 
 function onRobotOutOfFuel( actor )
 	trace( 'out of fuel' )
+	color_multiplied_g = 0
+	color_multiplied_b = 0
 end
 
 function onRobotCompletedAllRecipes()
@@ -906,11 +908,10 @@ function robotTick( actor )
 	barrel_ = 				lerp( DEFAULT_BARREL, 				0.7, fuelNeediness )
 	bloom_intensity_ = 		lerp( DEFAULT_BLOOM_INTENSITY, 		0.2, fuelNeediness )
 	burn_in_ =		 		lerp( DEFAULT_BURN_IN,		 		0.5, fuelNeediness )
-	-- color_multiplied_g =	lerp( 1.0, 0.5, fuelNeediness )
-	-- color_multiplied_b =	lerp( 1.0, 0.5, fuelNeediness )
 
-	-- trace( fuelNeediness )
-
+	local fuelDesperation = clamp( proportion( actor.fuel, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY, 0 ), 0, 1 )
+	color_multiplied_g = lerp( 1.0, 0.5, fuelDesperation )
+	color_multiplied_b = lerp( 1.0, 0.5, fuelDesperation )
 
 	if actor.fuel <= 0 then
 		actor.fuel = 0
