@@ -549,20 +549,26 @@ function playerTryPlaceAsBlock( item, direction, position )
 	return success
 end
 
-function tryDropHeldItem( forceAsBlock, forceAsItem )
+function tryDropHeldItem( options )
 	local item = player.heldItem
 	if not item then return end
+
+	options = options or { 
+		forceAsBlock = false,
+		forceAsItem = false,
+		preferDropAll = false
+	}
 
 	local dropPoint = placementPoint( player )
 
 	-- placeable as block?
 
-	if not forceAsBlock and 
-	   (forceAsItem or 
+	if not options.forceAsBlock and 
+	   (options.forceAsItem or 
 		playerTryPlaceAsBlock( item, player.heading:cardinalDirection(), dropPoint.pos ) == nil ) then
 
 		-- counted?
-		if item.count ~= nil and item.count > 1 then
+		if not options.preferDropAll and (item.count ~= nil and item.count > 1 ) then
 			actorCountAdd( item, -1 )
 			createActor( item.configKey, dropPoint.x, dropPoint.y )
 		else
@@ -671,7 +677,7 @@ function onButton1()
 end
 
 function onButton2()
-	-- tryDropHeldItem( false, true ) -- forcing drop
+	tryDropHeldItem( { forceAsItem = false, preferDropAll = true } ) -- forcing drop
 end
 
 function updateInput( actor )
@@ -1567,6 +1573,8 @@ end
 
 function withBlockTypeAt( x, y, callback )
 	local blockType, blockTypeIndex = blockTypeAt( x, y )
+	if blockType == nil then return nil end
+
 	return callback( blockType, blockTypeIndex )
 end
 
@@ -1634,13 +1642,17 @@ function blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availableIng
 	setBlockType( x, y, blockType.on_version )
 end
 
+function creationPositionFromBlockAt( x, y )
+	return tileCenterToWorldPos( x, y ) + vec2:new( 0, 14 )
+end
+
 function blockCompleteRecipe( x, y, blockType, blockTypeIndex )
 
 	local data = dataForBlockAt( x, y )
 	local recipe = data.recipe
 	if recipe == nil then return end
 
-	local creationPosition = tileCenterToWorldPos( x, y ) + vec2:new( 0, 14 )
+	local creationPosition = creationPositionFromBlockAt( x, y )
 
 	for key, count in pairs( recipe.output ) do
 		for i = 1, count do
@@ -1699,6 +1711,24 @@ function blockCheckRecipes( x, y, blockType, blockTypeIndex )
 	end
 end
 
+function harvesterTick( x, y, blockType, blockTypeIndex )
+	-- get the block just north.
+
+	withBlockTypeAt( x, y - 1, function( neighborBlockType, neighborBlockTypeIndex )
+		withBaseBlockType( neighborBlockTypeIndex, function( neighborBlockTypeBase, neighborBaseBlockTypeIndex )
+			if neighborBlockTypeBase.harvestSource ~= nil then
+				local harvestRate = neighborBlockTypeBase.harvestRate or 5 * 60
+				if ticks % harvestRate == 0 then
+					local creationPosition = creationPositionFromBlockAt( x, y )
+					createActor( neighborBlockTypeBase.harvestSource, creationPosition.x, creationPosition.y )
+				end
+			end
+		end)
+	end)
+
+	-- TODO
+end
+
 blockData = {}
 
 function dataForBlockAt( x, y )
@@ -1721,8 +1751,7 @@ blockConfigs = {
 	harvester = {
 		actorConfigName = 'harvester',
 		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
-		tick = function( x, y, blockType, blockTypeIndex )
-		end,
+		tick = harvesterTick,
 	},
 	combiner_off = {
 		actorConfigName = 'combiner',
@@ -1778,14 +1807,14 @@ blockConfigs = {
 	},
 	tree_base = {
 		sponsoredActorConfig = 'tree',
-		harvestSsource = 'wood',
+		harvestSource = 'wood',
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
 			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
 		end,
 	},
 	rubber_tree_base = {
 		sponsoredActorConfig = 'tree_rubber',
-		harvestSsource = 'rubber',
+		harvestSource = 'rubber',
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
 			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
 		end,
