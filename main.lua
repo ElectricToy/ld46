@@ -721,6 +721,22 @@ function populateWithActors()
 	createActor( 'iron_ore', 100, 40 )
 	createActor( 'iron_ore', 120, 40 )
 	createActor( 'iron_ore', 30, 40 )
+	createActor( 'rubber', 60, 60 )
+	createActor( 'rubber', 100, 60 )
+	createActor( 'rubber', 120, 60 )
+	createActor( 'rubber', 30, 60 )
+	createActor( 'wood', 60, 80 )
+	createActor( 'wood', 60, 80 )
+	createActor( 'wood', 100, 80 )
+	createActor( 'wood', 30, 80 )
+	createActor( 'copper', 60, 100 )
+	createActor( 'copper', 60, 100 )
+	createActor( 'copper', 100, 100 )
+	createActor( 'copper', 30, 100 )
+	createActor( 'gold_ore', 60, 110 )
+	createActor( 'gold_ore', 60, 110 )
+	createActor( 'gold_ore', 100, 110 )
+	createActor( 'gold_ore', 30, 110 )
 end
 
 function startGame()
@@ -964,6 +980,18 @@ actorConfigurations = {
 			idle = { speed = 0, frames = { 195 }},
 		},
 	},
+	gold = {
+		mayBePickedUp = true,
+		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
+		mayCombine = true,
+		dims = vec2:new( 9, 8 ),
+		ulOffset = vec2:new( 9, 11 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 196 }},
+		},
+	},
 	wood = {
 		mayBePickedUp = true,
 		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
@@ -973,7 +1001,19 @@ actorConfigurations = {
 		tileSizeX = 1,
 		tileSizeY = 1,
 		animations = {
-			idle = { speed = 0, frames = { 196 }},
+			idle = { speed = 0, frames = { 197 }},
+		},
+	},
+	rubber = {
+		mayBePickedUp = true,
+		maxCount = RESOURCE_MAX_COUNT_DEFAULT,
+		mayCombine = true,
+		dims = vec2:new( 7,6 ),
+		ulOffset = vec2:new( 8, 10 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 198 }},
 		},
 	},
 	stone = {
@@ -985,7 +1025,7 @@ actorConfigurations = {
 		tileSizeX = 1,
 		tileSizeY = 1,
 		animations = {
-			idle = { speed = 0, frames = { 197 }},
+			idle = { speed = 0, frames = { 199 }},
 		},
 	},
 	chip = {
@@ -997,7 +1037,7 @@ actorConfigurations = {
 		tileSizeX = 1,
 		tileSizeY = 1,
 		animations = {
-			idle = { speed = 0.5, frames = { 198, 199 }},
+			idle = { speed = 0.5, frames = { 200, 201 }},
 		},
 	},
 }
@@ -1652,26 +1692,52 @@ blockConfigs = {
 	},
 	combiner_off = {
 		actorConfigName = 'combiner',
+		on_version = 516,
+		recipes = {
+			{
+				inputs = { iron_ore = 2, rubber = 2 },
+				output = { conveyor = 1 },
+				duration = 1,
+			},
+			{
+				inputs = { wood = 2, stone = 2, iron = 1 },
+				output = { harvester = 1 },
+				duration = 1,
+			},
+			{
+				inputs = { copper = 4, gold = 1 },
+				output = { sensor = 1 },
+				duration = 1,
+			},
+			{
+				inputs = { stone = 3, wood = 2 },
+				output = { oven = 1 },
+				duration = 1,
+			},
+		},
 		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
 		tick = function( x, y, blockType, blockTypeIndex )
 			blockCheckRecipes( x, y, blockType, blockTypeIndex )
-		end,
+		end, 
 	},
 	combiner_on = {
 		actorConfigName = 'combiner',
+		off_version = 515,
 		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
 		tick = function( x, y, blockType, blockTypeIndex )
-			blockCheckRecipes( x, y, blockType, blockTypeIndex )
+			blockUpdateCooking( x, y, blockType, blockTypeIndex )
 		end,
 	},
 	sensor_off = {
 		actorConfigName = 'sensor',
+		on_version = 518,
 		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
 		tick = function( x, y, blockType, blockTypeIndex )
 		end,
 	},
 	sensor_on = {
 		actorConfigName = 'sensor',
+		off_version = 517,
 		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
 		tick = function( x, y, blockType, blockTypeIndex )
 		end,
@@ -1718,8 +1784,13 @@ blockTypes = {
 		recipes = {
 			{
 				inputs = { iron_ore = 2 },
-				output = { iron = 1 },
+				output = { iron = 2 },
 				duration = 2,
+			},
+			{
+				inputs = { gold_ore = 2 },
+				output = { gold = 1 },
+				duration = 3,
 			},
 		},
 		tick = function( x, y, blockType, blockTypeIndex )
