@@ -683,11 +683,11 @@ function tryPickupBlock( byActor )
 			byActor.heldItem.pos = creationPos + actorULOffset( byActor.heldItem )
 
 			clearBlock( blockX, blockY )
-			return true
+			return byActor.heldItem
 		end
 	end
 
-	return false
+	return nil
 end
 
 function onButton1()
@@ -704,7 +704,14 @@ function onButton1()
 end
 
 function onButton2()
-	tryDropHeldItem( { forceAsItem = false, preferDropAll = true } ) -- forcing drop
+	if player.heldItem ~= nil then
+		tryDropHeldItem( { forceAsItem = false, preferDropAll = true } ) -- forcing drop
+	else
+		-- Pickup
+		if tryPickupBlock( player ) == nil then
+			tryPickupActor( player )
+		end
+	end
 end
 
 function updateInput( actor )
@@ -755,6 +762,7 @@ function updateViewTransform()
 end
 
 function populateWithActors()
+	createActor( 'chip', 40, 50 )
 	createActor( 'iron_ore', 60, 40 )
 	createActor( 'iron_ore', 100, 40 )
 	createActor( 'iron_ore', 120, 40 )
@@ -1132,7 +1140,7 @@ actorConfigurations = {
 		tileSizeX = 1,
 		tileSizeY = 1,
 		animations = {
-			idle = { speed = 0.5, frames = { 200, 201 }},
+			idle = { speed = 0.1, frames = { 200, 201 }},
 		},
 	},
 }
