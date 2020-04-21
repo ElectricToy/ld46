@@ -588,20 +588,23 @@ function tryDropHeldItem( options )
 	if not item then return end
 
 	options = options or { 
-		forceAsBlock = false,
-		forceAsItem = false,
 		preferDropAll = false
 	}
+
+	-- If we're only holding one thing, nevermind about dropping "all".
+	options.preferDropAll = options.preferDropAll and ( item.count or 1 ) > 1
 
 	local dropPoint = placementPoint( player, DEFAULT_ARM_LENGTH )
 
 	local placed = false
-	if ( not options.forceAsItem or options.forceAsBlock ) then
+
+	if not options.preferDropAll then
 		-- try to place as a block
 		local placementX, placementY = playerTryPlaceAsBlock( item, player.heading:cardinalDirection(), dropPoint )
-		placed = placed or placementX ~= nil
+		placed = placementX ~= nil
 	end
 
+	-- failed?
 	if not placed then
 		-- try to place as an item
 
@@ -610,10 +613,10 @@ function tryDropHeldItem( options )
 		-- does this item have count?
 		if not options.preferDropAll and (( item.count or 1 ) > 1 ) then
 			createActor( item.configKey, dropPoint.x, dropPoint.y )
+			item.lastPlayerPlacedPos = vec2:new( item.pos.x, item.pos.y )
 			actorCountAdd( item, -1 )
 		else
 			-- no count, or we're dropping them all. don't create a new item, just drop this one.
-
 			makeNotHeld( item, dropPoint )
 		end
 	end
@@ -663,6 +666,7 @@ function makeNotHeld( item, dropPoint )
 	item.held = false
 	item.pos:set( dropPoint )
 	item.lastPos:set( item.pos )
+	item.lastPlayerPlacedPos = vec2:new( item.pos.x, item.pos.y )
 	item.vel:set( 0 )
 	item.ulOffset = nil
 	item.z = 0
@@ -765,7 +769,7 @@ end
 function onButton2()
 	-- try to drop.
 	if player.heldItem ~= nil then
-		tryDropHeldItem( { forceAsItem = false, preferDropAll = true } ) -- forcing drop
+		tryDropHeldItem( { preferDropAll = true } ) -- forcing drop
 	else
 		-- -- Pickup, prefering block.
 		-- if tryPickupBlock( player ) == nil then
@@ -1723,6 +1727,10 @@ function actorCheckSurroundingTilesForNearbyActors( actor, radius )
 	end)
 end
 
+function actorHasMovedSincePlayerPlaced( actor )
+	return actor.lastPlayerPlacedPos == nil or not actor.pos:equals( actor.lastPlayerPlacedPos )
+end
+
 function updateActor( actor )
 
 	if actor.additiveColor ~= nil then
@@ -1749,7 +1757,10 @@ function updateActor( actor )
 
 		actorCheckSurroundingTilesForNearbyActors( actor, 10 )
 
-		if actor.config.convertToBlockWhenPossible then
+		if actor.config.convertToBlockWhenPossible 
+			and (( actor.count or 1 ) == 1 
+			or actorHasMovedSincePlayerPlaced( actor ) )
+			then
 			tryPlaceAsBlock( actor, effectiveVelocity( actor ):cardinalDirection(), actor.pos )
 		end
 	end
