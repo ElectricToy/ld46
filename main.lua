@@ -596,7 +596,7 @@ function tryDropHeldItem( options )
 	local dropPoint = placementPoint( player, DEFAULT_ARM_LENGTH )
 
 	local placed = false
-	if not options.forceAsItem or options.forceAsBlock then
+	if ( not options.forceAsItem or options.forceAsBlock ) then
 		-- try to place as a block
 		local placementX, placementY = playerTryPlaceAsBlock( item, player.heading:cardinalDirection(), dropPoint )
 		placed = placed or placementX ~= nil
@@ -733,6 +733,9 @@ function tryPickupBlock( byActor )
 
 				return pickupActor
 			else
+				if pickupActor then
+					deleteActor( pickupActor )
+				end
 				return nil
 			end
 		end
