@@ -12,6 +12,7 @@ screen_size( 220, 128 )
 
 WHITE = 0xFFE3E0F2
 BRIGHT_RED = 0xFFC23324
+LIGHT_GRAY = 0xFFB0B8BF
 
 
 MIN_ACTIVE_BLOCK_INDEX = 256
@@ -903,7 +904,7 @@ function onResourcesCollide( a, b )
 	end
 end
 
-ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 30
+ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 15
 FUEL_LOSS_PER_TICK = 1
 FUEL_LOSS_PER_SECOND = FUEL_LOSS_PER_TICK * 60
 ROBOT_FUEL_PER_WOOD = FUEL_LOSS_PER_SECOND * ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS
@@ -1470,7 +1471,7 @@ function actorULOffset( actor )
 end
 
 function drawCount( count, x, y )
-	printShadowed( '' .. count, round( x ), round( y ))
+	printShadowed( '' .. count, round( x ), round( y ), LIGHT_GRAY )
 end
 
 function drawActorCount( actor )
@@ -2245,7 +2246,7 @@ blockConfigs = {
 		end,
 	},
 	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 15 },
-	source_gold_ore = { name = 'Gold Ore', harvestSource = 'gold_ore', harvestRate = 30 }, 
+	source_gold_ore = { name = 'Gold Ore', harvestSource = 'gold_ore', harvestRate = 60 }, 
 	source_copper = { name = 'Copper', harvestSource = 'copper', harvestRate = 20 }, 
 	source_stone = { name = 'Stone', harvestSource = 'stone', harvestRate = 12 }, 
 	robot_base_off = robotBaseClass(),
@@ -2683,7 +2684,7 @@ function drawBlockRecipes( blockType )
 		if recipe.output ~= nil then
 			local x = drawIngredientList( recipe.output, 10, y ) + 2
 
-			print( '=>', x, y + RECIPE_TEXT_OFFSET_Y, RECIPE_TEXT_COLOR )
+			print( '<=', x, y + RECIPE_TEXT_OFFSET_Y, RECIPE_TEXT_COLOR )
 			x = x + 14
 
 			drawIngredientList( recipe.inputs, x, y )
@@ -2706,14 +2707,23 @@ function drawHUDBlockInfo()
 
 	withBlockTypeAt( x, y, function( blockType, blockTypeIndex )
 		withBaseBlockType( blockTypeIndex, function( blockTypeBase, baseBlockTypeIndex )
-			printShadowed( blockTypeBase.name or '', 6, 6, BRIGHT_RED )
+			local textX = 6
+			local textY = 6
+			local name = blockTypeBase.name
+			if name ~= nil then
+				name = name .. ( blockTypeBase.harvestSource ~= nil and ' - use Harvester' or '' )
+				printShadowed( name or '', textX, textY, BRIGHT_RED )
+				textY = textY + 10
+			end
 
 			if type( blockTypeBase.explanation ) == 'table' then
-				for _, text in ipairs( blockTypeBase.explanation ) do
-					print( text, nil, nil, 0xFFB0B8BF )
+				for _, text in ipairs( blockTypeBase.explanation ) do					
+					printShadowed( text, textX, textY, 0xFFB0B8BF )
+					textY = textY + 10
 				end
 			else
-				print( blockTypeBase.explanation or '', nil, nil, 0xFFB0B8BF )
+				print( blockTypeBase.explanation or '', textX, textY, 0xFFB0B8BF )
+				textY = textY + 10
 			end
 
 			if blockTypeBase.drawRecipes ~= false and blockTypeBase.recipes ~= nil then
@@ -2739,7 +2749,7 @@ function drawRobotNeed( needRecipe )
 	if worldState.robotFound then
 		printRightAligned( ROBOT_NAME, screen_wid() - 10, 6, WHITE, printShadowed )
 		printRightAligned( ' needs', screen_wid() - 10, 14, WHITE, printShadowed )
-		drawIngredientList( needRecipe.inputs, screen_wid() - 16 - 10, 20 )
+		drawIngredientList( needRecipe.inputs, screen_wid() - 16 - 10, 22 )
 	end
 end
 
