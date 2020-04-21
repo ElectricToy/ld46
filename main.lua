@@ -2134,7 +2134,7 @@ function dataForBlockAt( x, y )
 	return blockData[ index ]
 end
 
-CONVEYOR_EXPLANATION = { 'When placing, direction', "which way you're moving." }
+CONVEYOR_EXPLANATION = { 'When placing, direction', "depends on", "which way you're moving." }
 SENSOR_EXPLANATION = { 'Detects items.', 'Triggers Conveyors.' }
 HARVESTER_EXPLANATION = 'Gathers resources.'
 COMBINER_EXPLANATION = { 'Combines resources', 'to make new ones.' }
@@ -2757,7 +2757,7 @@ end
 
 function drawInstructions()
 	if not worldState.moved then
-		printCentered( 'ARROW KEYS TO MOVE.', screen_wid() // 2, screen_hgt() - (16+20), WHITE, printShadowed )
+		printCentered( 'ARROW KEYS TO MOVE.', screen_wid() // 2, screen_hgt() - (16+20), BRIGHT_RED, printShadowed )
 	end
 
 	if not worldState.pickedUp then
