@@ -11,6 +11,7 @@ filter_mode( "Nearest" )
 screen_size( 220, 128 )
 
 WHITE = 0xFFE3E0F2
+BRIGHT_RED = 0xFFC23324
 
 
 MIN_ACTIVE_BLOCK_INDEX = 256
@@ -570,6 +571,7 @@ function playerTryPlaceAsBlock( item, direction, position )
 		end
 
 		createActor( 'placement_poof', placementX * PIXELS_PER_TILE, placementY * PIXELS_PER_TILE )
+		sfx( 'drop_block' )
 	end
 
 	return placementX, placementY
@@ -596,6 +598,8 @@ function tryDropHeldItem( options )
 
 	if not placed then
 		-- try to place as an item
+
+		sfx( 'drop_item' )
 
 		-- does this item have count?
 		if not options.preferDropAll and (( item.count or 1 ) > 1 ) then
@@ -670,6 +674,8 @@ function tryPickupActor( byActor )
 	local pickupActor = findPickupActorNear( byAcor, point.x, point.y, 12 )
 	if pickupActor == byActor or pickupActor == nil then return nil end
 
+	sfx( 'lift' )
+
 	makeHeld( pickupActor )
 	byActor.heldItem = pickupActor
 	return pickupActor
@@ -694,6 +700,8 @@ function tryPickupBlock( byActor )
 
 			byActor.heldItem.pos = creationPos + actorULOffset( byActor.heldItem )
 
+			sfx( 'lift' )
+
 			clearBlock( blockX, blockY )
 			return byActor.heldItem
 		end
@@ -716,6 +724,7 @@ function onButton1()
 end
 
 function onButton2()
+
 	if player.heldItem ~= nil then
 		tryDropHeldItem( { forceAsItem = false, preferDropAll = true } ) -- forcing drop
 	else
@@ -774,7 +783,7 @@ function updateViewTransform()
 end
 
 function populateWithActors()
-	-- createActor( 'chip', 40, 50 )
+	-- createActor( 'chip', 17 * PIXELS_PER_TILE, 17 * PIXELS_PER_TILE )
 	-- createActor( 'iron_ore', 60, 40 )
 	-- createActor( 'iron_ore', 100, 40 )
 	-- createActor( 'iron_ore', 120, 40 )
@@ -799,6 +808,10 @@ end
 
 function startGame()
 
+	music( 'ld46', 0.5 )
+
+	worldState = {}
+
 	blockData = {}
 	
 	restoreInitialMap()
@@ -820,6 +833,9 @@ function startGame()
 	color_multiplied_r_smoothed = 0
 	color_multiplied_g_smoothed = 0
 	color_multiplied_b_smoothed = 0
+
+	barrel_ = DEFAULT_BARREL
+	barrel_smoothed = barrel_
 
 
 	player = createActor( 'player', 9 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
@@ -883,44 +899,54 @@ function onResourcesCollide( a, b )
 	end
 end
 
-ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 60
+ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 5
 FUEL_LOSS_PER_TICK = 1
 FUEL_LOSS_PER_SECOND = FUEL_LOSS_PER_TICK * 60
 ROBOT_FUEL_PER_WOOD = FUEL_LOSS_PER_SECOND * ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS
 ROBOT_MAX_FUEL = ROBOT_FUEL_PER_WOOD * 4
 MAX_FUEL_FOR_NEEDINESS = FUEL_LOSS_PER_SECOND * 30
-MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY = FUEL_LOSS_PER_SECOND * 10
+MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY = FUEL_LOSS_PER_SECOND * 5
+MIN_FUEL_FOR_MAX_GUAGE_FLICKER = MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY + FUEL_LOSS_PER_SECOND * 5
 
 function onRobotOutOfFuel( actor )
-	trace( 'out of fuel' )
-	color_multiplied_g = 0
-	color_multiplied_b = 0
+	if not worldState.gameLost then
+		worldState.gameLost = true
+		color_multiplied_g = 0
+		color_multiplied_b = 0
+		music( '' )
+		sfx( 'fail' )
+	end
 end
 
 function onRobotCompletedAllRecipes()
-	trace( 'win!' )
+	if not worldState.gameWon then
+		worldState.gameWon = true
+		sfx( 'win' )
+	end
 end
 
 function robotTick( actor )
-	actor.fuel = actor.fuel ~= nil and actor.fuel or actor.config.fuel
-	actor.fuel = actor.fuel - FUEL_LOSS_PER_TICK
+	if worldState.robotFound and not worldState.robotDialoguing then
+		actor.fuel = actor.fuel ~= nil and actor.fuel or actor.config.fuel
+		actor.fuel = actor.fuel - FUEL_LOSS_PER_TICK
 
-	local fuelNeediness = clamp( proportion( actor.fuel, MAX_FUEL_FOR_NEEDINESS, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY ), 0, 1 ) ^ 2
-	
-	-- trace( actor.fuel .. ' ' .. fuelNeediness)
+		local fuelNeediness = clamp( proportion( actor.fuel, MAX_FUEL_FOR_NEEDINESS, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY ), 0, 1 ) ^ 2
+		
+		-- trace( actor.fuel .. ' ' .. fuelNeediness)
 
-	chromatic_aberration_ = lerp( DEFAULT_CHROMATIC_ABERRATION, 1.0, fuelNeediness )
-	barrel_ = 				lerp( DEFAULT_BARREL, 				0.7, fuelNeediness )
-	bloom_intensity_ = 		lerp( DEFAULT_BLOOM_INTENSITY, 		0.2, fuelNeediness )
-	burn_in_ =		 		lerp( DEFAULT_BURN_IN,		 		0.5, fuelNeediness )
+		chromatic_aberration_ = lerp( DEFAULT_CHROMATIC_ABERRATION, 1.0, fuelNeediness )
+		barrel_ = 				lerp( DEFAULT_BARREL, 				0.7, fuelNeediness )
+		bloom_intensity_ = 		lerp( DEFAULT_BLOOM_INTENSITY, 		0.2, fuelNeediness )
+		burn_in_ =		 		lerp( DEFAULT_BURN_IN,		 		0.5, fuelNeediness )
 
-	local fuelDesperation = clamp( proportion( actor.fuel, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY, 0 ), 0, 1 )
-	color_multiplied_g = lerp( 1.0, 0.5, fuelDesperation )
-	color_multiplied_b = lerp( 1.0, 0.5, fuelDesperation )
+		local fuelDesperation = clamp( proportion( actor.fuel, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY, 0 ), 0, 1 )
+		color_multiplied_g = lerp( 1.0, 0.5, fuelDesperation )
+		color_multiplied_b = lerp( 1.0, 0.5, fuelDesperation )
 
-	if actor.fuel <= 0 then
-		actor.fuel = 0
-		onRobotOutOfFuel( actor )
+		if actor.fuel <= 0 then
+			actor.fuel = 0
+			onRobotOutOfFuel( actor )
+		end
 	end
 end
 
@@ -1352,9 +1378,32 @@ function actorColor( actor )
 	return actor.flickerColor or 0xFFFFFFFF
 end
 
-function floatTermToColor( term )
-	local component = math.floor( lerp( 0, 0xFF, term ))
-	return ( 0xFF << 24 ) | ( component << 16 ) | ( component << 8 ) | component
+function floatTermsToColor( r, g, b )
+
+	function term( x )
+		return math.floor( x * 0xFF )
+	end
+
+	return 0xFF000000 | ( term( r ) << 16 ) | ( term( g ) << 8 ) | term( b )
+end
+
+function colorToFloatTerms( color )
+	local r = ( color & 0x00FF0000 ) >> 16
+	local g = ( color & 0x0000FF00 ) >> 8
+	local b = ( color & 0x000000FF ) >> 0
+
+	function term( x )
+		return x / 0xFF
+	end
+
+	return term( r ), term( g ), term( b )
+end
+
+function colorLerp( a, b, alpha )
+	local ar, ag, ab = colorToFloatTerms( a )
+	local br, bg, bb = colorToFloatTerms( b )
+
+	return floatTermsToColor( lerp( ar, br, alpha ), lerp( ag, bg, alpha ), lerp( ab, bb, alpha ) )
 end
 
 function actorAdditiveColor( actor )
@@ -1640,6 +1689,10 @@ end
 
 function updateActor( actor )
 
+	if actor.additiveColor ~= nil then
+		actor.additiveColor = colorLerp( actor.additiveColor, 0, 0.08 )
+	end
+
 	if not actor.inert and ( actor.config.inert == nil or not actor.config.inert ) then
 
 		if actor.config.tick ~= nil then
@@ -1827,6 +1880,8 @@ function blockCompleteRecipe( x, y, blockType, blockTypeIndex )
 	if recipe.effect then
 		recipe.effect( x, y, blockType, blockTypeIndex )
 	end
+
+	sfx( 'produce' )
 end
 
 function blockUpdateCooking( x, y, blockType, blockTypeIndex )
@@ -1957,6 +2012,9 @@ function reportIfNil( label, value )
 end
 
 function robotOnCompletedRecipe()
+
+	sfx( 'eat_wood' )
+
 	-- reportIfNil( 'blockConfigs', blockConfigs )
 	-- reportIfNil( 'robot_base_off', blockConfigs.robot_base_off )
 	-- reportIfNil( 'blockConfigs', blockConfigs.robot_base_off.recipes )
@@ -1983,6 +2041,8 @@ end
 function robotOnWood( x, y, blockType, blockTypeIndex )
 	-- trace( 'robotOnWood' )
 	robot.fuel = math.min( ROBOT_MAX_FUEL, robot.fuel + ROBOT_FUEL_PER_WOOD )
+	guage.flashBrightness = 1
+	robot.additiveColor = 0xFFFFFF00
 
 	if robot.recipeSequence == nil or robot.recipeSequence == 1 then
 		robot.recipeSequence = 1
@@ -2006,9 +2066,13 @@ function robotOnChip( x, y, blockType, blockTypeIndex )
 	robotOnCompletedRecipe()
 end
 
+ROBOT_NAME = '@4!R'
+
+ROBOT_RECIPE_DURATION = 0
+
 function robotBaseClass()
 	return {
-		name = 'Rob',
+		name = ROBOT_NAME,
 		sponsoredActorConfig = 'robot',
 		drawRecipes = false,
 		on_version = 290,
@@ -2016,25 +2080,25 @@ function robotBaseClass()
 			{
 				inputs = { wood = 1 },
 				effect = robotOnWood,
-				duration = 0.25,
+				duration = ROBOT_RECIPE_DURATION,
 			},
 			{
 				enabled = false,
 				inputs = { iron = 4 },
 				effect = robotOnIron,
-				duration = 0.25,
+				duration = ROBOT_RECIPE_DURATION,
 			},
 			{
 				enabled = false,
 				inputs = { conveyor = 9 },
 				effect = robotOnConveyor,
-				duration = 0.25,
+				duration = ROBOT_RECIPE_DURATION,
 			},
 			{
 				enabled = false,
 				inputs = { sensor = 2 },
 				effect = robotOnSensor,
-				duration = 0.25,
+				duration = ROBOT_RECIPE_DURATION,
 			},
 			{
 				enabled = false,
@@ -2359,7 +2423,28 @@ function updateBlocks()
 	end )
 end
 
+function speechSound()
+	sfx( 'speech' .. math.floor( randInt( 1, 4 )) )
+end
+
+function onRobotFound()
+	if not worldState.robotFound then
+		worldState.robotDialoguing = true
+		sfx( 'speech3' )
+	end
+end
+
+function updateGameLogic()
+	if not worldState.robotDialoguing then
+		if player.pos.x >= 19 * PIXELS_PER_TILE and player.pos.y >= 13 * PIXELS_PER_TILE and player.pos.y <= 17 * PIXELS_PER_TILE then
+			onRobotFound()
+		end
+	end
+end
+
 function updateActive()
+
+	updateGameLogic()
 
 	updateInput( player )
 
@@ -2370,9 +2455,45 @@ function updateActive()
 	ticks = ticks + 1
 end
 
+function pressToRestart()
+	if btnp( 4 ) or btnp( 5 ) then
+		startGame()
+	end
+end
+
+function updateGameWon()
+	pressToRestart()
+end
+
+function updateGameLost()
+	pressToRestart()
+end
+
+function updateDialogue()
+	if btnp( 4 ) or btnp( 5 ) then
+		worldState.dialogueStep = worldState.dialogueStep + 1
+
+		if worldState.dialogueStep > #dialogue then
+			worldState.robotDialoguing = false
+			worldState.robotFound = true
+		else
+			speechSound()
+		end
+	end
+end
+
 function update()
 
-	updateActive()
+	if worldState.robotDialoguing then
+		updateDialogue()
+	elseif worldState.gameWon then
+		updateGameWon()
+	elseif worldState.gameLost then
+		updateGameLost()
+	else
+		updateFuelGuage()
+		updateActive()
+	end
 
 	updateScreenParams()
 
@@ -2481,12 +2602,31 @@ function drawActors()
 
 end
 
+guage = {
+	flashBrightness = 1,
+}
+
+function updateFuelGuage()
+	guage.flashBrightness = lerp( guage.flashBrightness, 0.0, 0.1 )
+
+	local guageFlashSpeed = ( robot.fuel <= MIN_FUEL_FOR_MAX_GUAGE_FLICKER ) and 10 or ( robot.fuel <= MAX_FUEL_FOR_NEEDINESS and 60 or 0 )
+
+	if guageFlashSpeed > 0 and ( ticks % guageFlashSpeed ) == 0 then
+		guage.flashBrightness = 1
+	end
+end
+
 function drawHUDFuelGuage()
+	if not worldState.robotFound then return end
+
 	local screen_mid = screen_wid() // 2
 	local fuelGuageMaxWid = screen_wid() * 0.65
 	local guageWid = fuelGuageMaxWid * clamp( proportion( robot.fuel, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY, ROBOT_MAX_FUEL ), 0, 1 )
 	local halfWid = guageWid // 2
-	rectfill( screen_mid - halfWid, screen_hgt() - 5, screen_mid + halfWid, screen_hgt() - 3, 0xFFC23324 )
+
+	local guageColor = colorLerp( BRIGHT_RED, WHITE, guage.flashBrightness )
+
+	rectfill( screen_mid - halfWid, screen_hgt() - 5, screen_mid + halfWid, screen_hgt() - 3, guageColor )
 end
 
 RECIPE_TEXT_COLOR = 0xFFE3E0F2
@@ -2530,8 +2670,8 @@ function drawBlockRecipes( blockType )
 		if recipe.output ~= nil then
 			local x = drawIngredientList( recipe.output, 10, y ) + 2
 
-			print( '=', x, y + RECIPE_TEXT_OFFSET_Y, RECIPE_TEXT_COLOR )
-			x = x + 7
+			print( '=>', x, y + RECIPE_TEXT_OFFSET_Y, RECIPE_TEXT_COLOR )
+			x = x + 14
 
 			drawIngredientList( recipe.inputs, x, y )
 
@@ -2583,8 +2723,10 @@ function printCentered( text, x, y, color, printFn )
 end
 
 function drawRobotNeed( needRecipe )
-	printRightAligned( 'Rob wants:', screen_wid() - 8, 6, WHITE, printShadowed )
-	drawIngredientList( needRecipe.inputs, screen_wid() - 16 - 8, 12 )
+	if worldState.robotFound then
+		printRightAligned( ROBOT_NAME .. ' needs:', screen_wid() - 10, 6, WHITE, printShadowed )
+		drawIngredientList( needRecipe.inputs, screen_wid() - 16 - 10, 12 )
+	end
 end
 
 function drawHUDQuest()
@@ -2610,6 +2752,74 @@ function drawHUD()
 	drawHUDBlockInfo()
 end
 
+function drawPlayAgain( x )
+	printCentered( 'PLAY AGAIN!', x, 90, WHITE, printShadowed )
+	printCentered( '[X]', x, 100, WHITE, printShadowed )
+end
+
+function drawGameWon()
+	camera( 0, 0 )
+	local midX = screen_wid() / 2
+	printCentered( 'YOU WON!', midX, 24, BRIGHT_RED, printShadowed )
+	printCentered( 'You Kept ' .. ROBOT_NAME .. ' Alive', midX, 40, WHITE, printShadowed )
+	printCentered( 'and helped him get fixed!', midX, 50, WHITE, printShadowed )
+
+	drawPlayAgain( midX )
+end
+
+function drawGameLost()
+	camera( 0, 0 )
+	local midX = screen_wid() / 2
+	printCentered( 'GAME OVER', midX, 24, BRIGHT_RED, printShadowed )
+	printCentered( 'You failed', midX, 40, WHITE, printShadowed )
+	printCentered( 'to Keep ' .. ROBOT_NAME .. ' Alive.', midX, 50, WHITE, printShadowed )
+
+	drawPlayAgain( midX )
+end
+
+dialogue = {
+	{ "HELLO AGAIN, OLD FRIEND!", 
+	  "Yes, it's me: " .. ROBOT_NAME .. "!" },
+	{ "It's been",
+	  "SUCH a LONG time!" },
+	{ "As you may have noticed,", 
+	  "I've seen BETTER DAYS." },
+	{ "I'd be much OBLIGED", 
+	  "if you would HELP me." },
+	{ "I need WOOD to stay alive,", 
+	  "and some other ITEMS", 
+	  "to help FIX me." },
+	{ "Would you FIND or MAKE",
+	  "these items", 
+	  "and BRING them to me?" },
+	{ "You may need to create", 
+	  "almost a FACTORY",
+	  "to make it all." },
+	{ "And DON'T FORGET:" },
+	{ "I'll need WOOD",
+	  "from time to time",
+	  "to KEEP ALIVE!" },
+	{ "I can't THANK YOU enough!" },
+}
+
+function drawDialogue()
+	camera( 0, 0 )
+
+	worldState.dialogueStep = worldState.dialogueStep or 1
+
+	local midX = screen_wid() / 2
+
+	local speech = dialogue[ worldState.dialogueStep ]
+
+	local y = 24
+	for i, text in ipairs( speech ) do
+		printCentered( text, midX, y, (worldState.dialogueStep == 1 and i == 1 ) and BRIGHT_RED or WHITE, printShadowed )
+		y = y + 12
+	end
+
+	printCentered( '[X] or [Z] to continue', midX, 100, BRIGHT_RED, printShadowed )
+end
+
 function draw()
 	-- cls( 0xff000040 )
 
@@ -2620,7 +2830,15 @@ function draw()
 
 	drawActors()
 
-	drawHUD()
+	if worldState.robotDialoguing then
+		drawDialogue()
+	elseif worldState.gameWon then
+		drawGameWon()
+	elseif worldState.gameLost then
+		drawGameLost()
+	else
+		drawHUD()
+	end
 
 	camera( 0, 0 )
 	drawDebug()
@@ -2628,4 +2846,7 @@ end
 
 saveInitialMap()
 
+worldState = {}
+
 startGame()
+
