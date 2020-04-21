@@ -1,4 +1,4 @@
--- Ludum Dare 45: Jeff, Ellie, and Liam Wofford
+-- Ludum Dare 46
 
 function lerp( a, b, alpha )
 	return a + (b-a) * alpha
@@ -8,7 +8,14 @@ end
 text_scale( 1 )
 filter_mode( "Nearest" )
 
-screen_size( 240, 160 )
+screen_size( 220, 128 )
+
+WHITE = 0xFFE3E0F2
+BRIGHT_RED = 0xFFC23324
+LIGHT_GRAY = 0xFFB0B8BF
+
+
+MIN_ACTIVE_BLOCK_INDEX = 256
 
 SPRITE_SHEET_PIXELS_X = 512
 PIXELS_PER_TILE = 16
@@ -16,21 +23,27 @@ TILES_X = SPRITE_SHEET_PIXELS_X // PIXELS_PER_TILE
 
 sprite_size( PIXELS_PER_TILE )
 
-WORLD_SIZE_PIXELS = 128 * PIXELS_PER_TILE
+WORLD_SIZE_TILES = 32
+WORLD_SIZE_PIXELS = WORLD_SIZE_TILES * PIXELS_PER_TILE
 
-barrel_ = 0.2
-bloom_intensity_ = 0
-bloom_contrast_ = 0
-bloom_brightness_ = 0
-burn_in_ = 0
-chromatic_aberration_ = 0
+DEFAULT_CHROMATIC_ABERRATION = 0.4
+DEFAULT_BARREL = 0.2
+DEFAULT_BLOOM_INTENSITY = 0.1
+DEFAULT_BURN_IN = 0.1
+
+barrel_ = DEFAULT_BARREL
+bloom_intensity_ = DEFAULT_BLOOM_INTENSITY
+bloom_contrast_ = 10
+bloom_brightness_ = 1
+burn_in_ = DEFAULT_BURN_IN
+chromatic_aberration_ = DEFAULT_CHROMATIC_ABERRATION
 noise_ = 0.025
-rescan_ = 0.25
+rescan_ = 0.75
 saturation_ = 1
 color_multiplied_r = 1
 color_multiplied_g = 1
 color_multiplied_b = 1
-bevel_ = 0
+bevel_ = 0.20
 
 local barrel_smoothed = barrel_
 local bloom_intensity_smoothed = bloom_intensity_
@@ -70,7 +83,7 @@ function updateScreenParams()
 	noise( noise_smoothed, rescan_smoothed )
 	saturation( saturation_smoothed )
 	color_multiplied( color_multiplied_r_smoothed, color_multiplied_g_smoothed, color_multiplied_b_smoothed )
-	bevel( bevel_smoothed, 0 )
+	bevel( bevel_smoothed, 1 )
 end
 
 updateScreenParams()
@@ -143,7 +156,6 @@ function vec2:lengthSquared()
   return self.x * self.x + self.y * self.y
 end
 
-
 function vec2:dist(v)
   local dx = self.x - v.x
   local dy = self.y - v.y
@@ -153,6 +165,26 @@ end
 
 function vec2:dot(v)
   return self.x * v.x + self.y * v.y
+end
+
+function vec2:majorAxis()
+	return math.abs( self.x ) > math.abs( self.y ) and 0 or 1
+end
+
+function vec2:snappedToMajorAxis()
+	if self:majorAxis() == 0 then
+		return vec2:new( signNoZero( self.x ), 0 )
+	else
+		return vec2:new( signNoZero( self.y ), 0 )
+	end
+end
+
+function vec2:cardinalDirection() -- 0 = north, 1 = east...
+	if self:majorAxis() == 0 then
+		return self.x >= 0 and 1 or 3
+	else
+		return self.y >= 0 and 2 or 0
+	end
 end
 
 function vec2:normal()
@@ -206,8 +238,13 @@ function vec2:angle_between(v1, v2)
 end
 
 function vec2:set(x, y)
-  self.x = x
-  self.y = y
+	if type( x ) == 'table' then
+		self.x = x.x
+		self.y = x.y
+	else
+		self.x = x
+		self.y = y ~= nil and y or x
+	end
 end
 
 function vec2:equals(o)
@@ -223,6 +260,10 @@ end
 
 function randInRange( a, b )
 	return lerp( a, b, math.random() )
+end
+
+function randInt( a, b )
+	return math.floor( randInRange( a, b ))
 end
 
 function randomElement( tab )
@@ -261,16 +302,22 @@ function tableRemoveValue( tab, element )
 
 	table.remove( tab, tableFind( tab, element ))
 end
+
+function table.copy( t )
+	local u = {}
+	for k, v in pairs(t) do u[k] = v end
+	return setmetatable(u, getmetatable(t))
+end
 	
 local debugCircles = {}
 local debugMessages = {}
 
 function drawDebugCircles()
 	for _, circle in ipairs( debugCircles ) do
-		circ( circle[1].x, circle[1].y, circle[2] or 32, circle[3] or 0xFFFFFFFF )	-- TODO!!!
+		circ( circle[1].x, circle[1].y, 32 )	-- TODO!!!
 	end
 
-	-- debugCircles = {}
+	debugCircles = {}
 end
 
 function drawDebug()
@@ -280,17 +327,6 @@ function drawDebug()
 	-- print( tostring( world.focusX ) .. ',' .. tostring( world.focusY ))
 
 	-- print( 'actors: ' .. tostring( #actors ), 0, 0 )
-	-- print( 'plr: ' .. player.pos:__tostring() )
-
-	-- TODO
-	-- local count = 0
-	-- for _, actor in ipairs( actors ) do
-	-- 	if actor.config.name == 'tree_large' or actor.config.name == 'tree_small' then
-	-- 		count = count + 1
-	-- 	end
-	-- end
-
-	-- print( 'trees: ' .. tostring( count ), 0, 0 )
 
 	for _,message in ipairs( debugMessages ) do
 		print( message )
@@ -333,6 +369,10 @@ function clamp( x, minimum, maximum )
 	return math.min( maximum, math.max( x, minimum ))
 end
 
+function proportion( x, a, b )
+	return ( x - a ) / ( b - a )
+end
+
 function pctChance( percent )
 	return randInRange( 0, 100 ) <= percent
 end
@@ -352,879 +392,912 @@ end
 
 -- Objects
 
--- GLOBALS
-
-desiredMaxActors = 800
-
-actorUpdateMargin = PIXELS_PER_TILE * 3
-
-actorDeleteMargin = actorUpdateMargin + PIXELS_PER_TILE * 3
-actorSpawnInset = PIXELS_PER_TILE * 1
-
-actorDrawMargin = PIXELS_PER_TILE
-
--- TIME
-
-ticks = 0
-function now()
-	return ticks * 1 / 60.0
+function rectsOverlap( rectA, rectB )
+	return not ( rectB.right < rectA.left or rectB.left > rectA.right or rectB.bottom < rectA.top or rectB.top > rectA.bottom )
 end
 
-realTicks = 0
-function realNow()
-	return realTicks * 1 / 60.0
+function rectOverlapsPoint( rect, pos )
+	return rect.left <= pos.x and pos.x <= rect.right and rect.top <= pos.y and pos.y <= rect.bottom
 end
 
--- ACTORS
+function expandContractRect( rect, expansion )
+	rect.left = rect.left - expansion
+	rect.top = rect.top - expansion
+	rect.right = rect.right + expansion
+	rect.bottom = rect.bottom + expansion
+	return rect
+end
 
-function isEnemyInRange( actor )
-	local aiConfig = actor.config.ai
+function sprite_by_grid( x, y )
+	return y // TILES_X + x
+end
 
-	if actor.enemy == nil then
-		actor.enemy = player
+function range( from, to, step )
+	arr = {}
+	for i = from, to, step or 1 do
+		table.insert( arr, i )
+	end
+	return arr
+end
+
+function saveInitialMap()
+	initialMap = {}
+	for y = 0, WORLD_SIZE_TILES - 1 do
+		initialMap[ y ] = {}
+		for x = 0, WORLD_SIZE_TILES - 1 do
+			initialMap[ y ][ x ] = mget( x, y )
+		end
+	end
+end
+
+function restoreInitialMap()
+	if initialMap == nil then 
+		trace( 'no initial map to restore' )
+		return 
 	end
 
-	if actor.enemy.health <= 0 then return false end
-
-	local toEnemy = actor.enemy.pos - actor.pos
-	local dist = toEnemy:length()
-
-	return dist <= aiConfig.awarenessRadius
+	for y = 0, WORLD_SIZE_TILES - 1 do
+		for x = 0, WORLD_SIZE_TILES - 1 do
+			mset( x, y, initialMap[ y ][ x ] )
+		end
+	end
 end
 
-function actorMayPursueEnemy( actor )
-	return isEnemyInRange( actor ) and not actorUntouchable( actor.enemy )
+actors = {}
+blocksToActors = {}
+
+function actorCenter( actor )
+	return actor.pos - vec2:new( 0, actor.config.dims.y * 0.5 )
 end
 
-wanderPause = {
-	name = 'wanderPause',
-	start = function( actor )
-	end,
-	update = function( actor )
-		if actorMayPursueEnemy( actor ) then
-			actorPerformAction( actor, pursue )
-		end
-	end,
-	finish = function( actor )
-		actorPerformAction( actor, wander, randInRange( 2, 3 ) )
+function actorConveyorForce( actor, force )
+	actor.vel = actor.vel + force
+end
+
+function actorControlThrust( actor, thrust )
+	actor.thrust = thrust
+	actor.vel = actor.vel + thrust
+
+	if thrust:lengthSquared() > 0 then
+		actor.heading = thrust:normal()
 	end
-}
+end
 
-wander = {
-	name = 'wander',
-	start = function( actor )
-		actor.heading = vec2:new( 1, 0 )
-		actor.heading:rotate( randInRange( 0.0, math.pi * 2.0 ))
-	end,
-	update = function( actor )
-		actorControlThrust( actor, actor.heading:normal() * actor.config.maxThrust * 0.5 )
-		if actorMayPursueEnemy( actor ) then
-			actorPerformAction( actor, pursue )
-		end
-	end,
-	finish = function( actor )
-		actorPerformAction( actor, wanderPause, randInRange( 1, 2 ) )
+ARM_LENGTH = 2
+ARM_OFFSET = vec2:new( 0, -2 )
+
+function pickupPoint( byActor )
+	return byActor.pos + ARM_OFFSET + byActor.heading * ARM_LENGTH
+end
+
+function placementPoint( byActor )
+	return byActor.pos + vec2:new( 0, 4 ) + byActor.heading * ARM_LENGTH
+end
+
+function blockInteractionTile( byActor )
+	local point = pickupPoint( byActor )
+
+	local pickupTileX = worldToTile( point.x )
+	local pickupTileY = worldToTile( point.y )
+
+	if  pickupTileX < 0 or pickupTileX >= WORLD_SIZE_TILES or
+		pickupTileY < 0 or pickupTileY >= WORLD_SIZE_TILES then
+			return nil
 	end
-}
 
-pursue = {
-	name = 'pursue',
-	start = function( actor )
-		if actor.config.ai.alertSound ~= nil then
-			sfx( actor.config.ai.alertSound )
-		end
-	end,
-	update = function( actor )
-		if actor.enemy == nil then
-			actor.enemy = player
-		end
-		local toEnemy = actor.enemy.pos - actor.pos
+	return pickupTileX, pickupTileY
+end
 
-		local toEnemyNorm = toEnemy:normal()
+function blockToPickup( byActor )
+
+	local pickupTileX, pickupTileY = blockInteractionTile( byActor )
+
+	local blockType = blockTypeAt( pickupTileX, pickupTileY )
+	if blockType == nil or blockType.stationary then return nil end
+
+	return pickupTileX, pickupTileY
+end
+
+function randomGroundBlockIndex()
+	return randInt( 256, 256+5 )
+end
+
+function blockOnNeighborChanged( x, y, changedX, changedY )
+	withBlockTypeAt( x, y, function( blockType, blockTypeIndex )
+		withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
+			if baseBlockType ~= nil and baseBlockType.onPlaced ~= nil then
+				baseBlockType.onPlaced( x, y, baseBlockType, blockTypeIndex ) 
+			end
+		end)
+	end)
+end
+
+function onBlockChangeNear( x, y )
+	blockOnNeighborChanged( x, y, x, y )
+	blockOnNeighborChanged( x, y - 1, x, y )
+end
+
+function setBlockType( x, y, blockTypeIndex )
+	mset( x, y, blockTypeIndex )
+	onBlockChangeNear( x, y )
+end
+
+function clearBlock( x, y )
+	setBlockType( x, y, randomGroundBlockIndex() )
+end
+
+function createActorForBlockIndex( blockTypeIndex, x, y )
+	return withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
+		if baseBlockType.actorConfigName ~= nil then
+			return createActor( baseBlockType.actorConfigName, x, y )
+		end
+	end)
+end
+
+function mayPlaceBlockOnBlock( x, y )
+	local blockType, blockTypeIndex = blockTypeAt( x, y )
+	if blockType == nil then return false end
+
+	return blockType.mayBePlacedUpon or false
+end
+
+function tryPlaceAsBlock( item, direction, position )
+	local blockTypeForItem = actorPlacementBlock( item, direction )
+	if blockTypeForItem == nil then return nil end
+
+	-- clear block placement area?
+	local placementPos = position or actorCenter( item )
+	local placementX = worldToTile( placementPos.x )
+	local placementY = worldToTile( placementPos.y )
+	if not mayPlaceBlockOnBlock( placementX, placementY ) then 
+		return nil 
+	end
+
+	setBlockType( placementX, placementY, blockTypeForItem )
+
+	actorCountAdd( item, -1 )
+
+	return placementX, placementY
+end
+
+function playerTryPlaceAsBlock( item, direction, position )
+
+	local placementX, placementY = tryPlaceAsBlock( item, direction, position )
 	
-		actorControlThrust( actor, toEnemyNorm * actor.config.maxThrust )
-
-		if not actorMayPursueEnemy( actor ) then
-			actorPerformAction( actor, wanderPause, randInRange( 1, 1 ) )
+	if placementX ~= nil then
+		
+		-- succeeded
+		if item.deleted then
+			player.heldItem = nil
 		end
-	end,
-	finish = function( actor )
-		actorPerformAction( actor, wanderPause, randInRange( 1, 3 ) )
+
+		createActor( 'placement_poof', placementX * PIXELS_PER_TILE, placementY * PIXELS_PER_TILE )
+		sfx( 'drop_block' )
 	end
-}
 
-flee = {
-	name = 'flee',
-	start = function( actor )
-	end,
-	update = function( actor )
-		if actor.enemy == nil then
-			actor.enemy = player
+	return placementX, placementY
+end
+
+function tryDropHeldItem( options )
+	local item = player.heldItem
+	if not item then return end
+
+	options = options or { 
+		forceAsBlock = false,
+		forceAsItem = false,
+		preferDropAll = false
+	}
+
+	local dropPoint = placementPoint( player )
+
+	local placed = false
+	if not options.forceAsItem or options.forceAsBlock then
+		-- try to place as a block
+		local placementX, placementY = playerTryPlaceAsBlock( item, player.heading:cardinalDirection(), dropPoint.pos )
+		placed = placed or placementX ~= nil
+	end
+
+	if not placed then
+		-- try to place as an item
+
+		sfx( 'drop_item' )
+
+		-- does this item have count?
+		if not options.preferDropAll and (( item.count or 1 ) > 1 ) then
+			createActor( item.configKey, dropPoint.x, dropPoint.y )
+			actorCountAdd( item, -1 )
+		else
+			-- no count, or we're dropping them all. don't create a new item, just drop this one.
+
+			makeNotHeld( item, dropPoint )
 		end
-		local toEnemy = actor.enemy.pos - actor.pos
+	end
+end
 
-		local toEnemyNorm = toEnemy:normal()
+function forEachActorNear( x, y, radius, callback )
+	local pos = vec2:new( x, y )
+	local rSquared = radius * radius
+	for _, actor in ipairs( actors ) do
+		local distSquared = ( actor.pos - pos ):lengthSquared()
+		if distSquared <= rSquared then
+			callback( actor, distSquared )
+		end
+	end
+end
+
+function findPickupActorNear( forActor, x, y, radius )
+	local nearestActor = nil
+	local nearestDistSquared = nil
+	forEachActorNear( x, y, radius, function( actor, distSquared )
+		if not actor.config.mayBePickedUp or actor == forActor then return end
+		
+		if nearestDistSquared == nil or distSquared < nearestDistSquared then
+			nearestDistSquared = distSquared
+			nearestActor = actor
+		end
+	end)
+
+	return nearestActor
+end
+
+function makeHeld( item )
+	item.held = true
+	item.inert = true
+	item.nonColliding = true
+	item.z = 0
+	item.vel = vec2:new( 0, 0)
+	item.lastPos = vec2:new( x, y )
+	item.vel = vec2:new( 0, 0 )
+	item.thrust = vec2:new( 0, 0 )
+	item.heading = vec2:new( -1, 0 )
+
+	createShadowForActor( item )
+end
+
+function makeNotHeld( item, dropPoint )
+	item.held = false
+	item.pos:set( dropPoint )
+	item.lastPos:set( item.pos )
+	item.vel:set( 0 )
+	item.ulOffset = nil
+	item.z = 0
+	item.inert = false
+	item.nonColliding = false
+	if item.shadow ~= nil then deleteActor( item.shadow ) end
+	player.heldItem = nil
+end
+
+function tryPickupActor( byActor )
+	if byActor.heldItem ~= nil then return nil end
+
+	-- look for actors near the pick area
+	local point = pickupPoint( byActor )
+	local pickupActor = findPickupActorNear( byAcor, point.x, point.y, 12 )
+	if pickupActor == byActor or pickupActor == nil then return nil end
+
+	sfx( 'lift' )
+	worldState.pickedUp = true
+
+	makeHeld( pickupActor )
+	byActor.heldItem = pickupActor
+	return pickupActor
+end
+
+function tryPickupBlock( byActor )
+	if byActor.heldItem ~= nil then return nil end
+
+	local blockX, blockY = blockToPickup( byActor )
+	if blockX ~= nil then
+		-- place in inventory
+		local creationPos = vec2:new( blockX, blockY ) * PIXELS_PER_TILE
+
+		local blockIndex = mget( blockX, blockY )
+		byActor.heldItem = createActorForBlockIndex( blockIndex, creationPos.x, creationPos.y )
+
+		if byActor.heldItem ~= nil then
+
+			createActor( 'pickup_particles', blockX * PIXELS_PER_TILE + 8, blockY * PIXELS_PER_TILE + 16 )
+
+			makeHeld( byActor.heldItem )
+
+			byActor.heldItem.pos = creationPos + actorULOffset( byActor.heldItem )
+
+			sfx( 'lift' )
+			worldState.pickedUp = true
+
+			clearBlock( blockX, blockY )
+			return byActor.heldItem
+		end
+	end
+
+	return nil
+end
+
+function onButton1()
+	if player.heldItem ~= nil then
+		tryDropHeldItem()
+	else
+		-- Pickup
+
+		if tryPickupActor( player ) == nil then
+			tryPickupBlock( player )
+		end
+	end
+end
+
+function onButton2()
+	if player.heldItem ~= nil then
+		tryDropHeldItem( { forceAsItem = false, preferDropAll = true } ) -- forcing drop
+	else
+		-- Pickup
+		if tryPickupBlock( player ) == nil then
+			tryPickupActor( player )
+		end
+	end
+end
+
+function updateInput( actor )
+
+	local thrust = vec2:new()
+
+	if btn( 0 ) then
+		worldState.moved = true
+		thrust.x = thrust.x - 1
+	end
+
+	if btn( 1 ) then
+		worldState.moved = true
+		thrust.x = thrust.x + 1
+	end
+
+	if btn( 2 ) then 
+		worldState.moved = true
+		thrust.y = thrust.y - 1
+	end
+
+	if btn( 3 ) then
+		worldState.moved = true
+		thrust.y = thrust.y + 1
+	end
+
+	thrust = thrust:normal() * actor.config.maxThrust
+
+	actorControlThrust( actor, thrust )
+
+	if btnp( 4 ) then
+		onButton1()
+	end
+	if btnp( 5 ) then
+		onButton2()
+	end
+end
+
+function updateViewTransform()
+	local viewOffset = vec2:new( screen_wid() / 2, screen_hgt() / 2 )
+
+	viewOffset.y = screen_hgt() / 2
+
+	-- local desiredViewPoint = ( player.pos - vec2:new( 0, 10 ) ) - viewOffset + player.vel * 32
 	
-		actorControlThrust( actor, toEnemyNorm * (actor.config.maxThrust * -0.35) )
-	end,
-	finish = function( actor )
-		actorPerformAction( actor, wanderPause, randInRange( 1, 3 ) )
-	end
-}
+	-- if viewPoint == nil then viewPoint = desiredViewPoint end
+	-- viewPoint = lerp( viewPoint, desiredViewPoint, 0.05 )
 
-local testConversation = {
-	{ 	
-		'this is message 1 line 1',
-		'and now line 2!' 
-	},
-	{ 
-		'this is message 2 line 1',
-		'and now message 2 line 2!!',
-		'and three!' 
-	},
-}
+	local viewPoint = ( player.pos - vec2:new( 0, 10 ) ) - viewOffset
 
-function createFrames( startX, startY, numFrames, deltaX )
-	local frames = {}
-	for i = 0, numFrames - 1 do
-		table.insert( frames, spriteIndex( startX + i * deltaX, startY ))
-	end
-	return frames
+	setWorldView( viewPoint.x, viewPoint.y )
 end
 
-local healthFlash = 0
-local coinFlash = 0
-
-function deleteActor( actor )
-	tableRemoveValue( actors, actor )
+function populateWithActors()
+	-- createActor( 'chip', 17 * PIXELS_PER_TILE, 17 * PIXELS_PER_TILE )
+	-- createActor( 'iron_ore', 60, 40 )
+	-- createActor( 'iron_ore', 100, 40 )
+	-- createActor( 'iron_ore', 120, 40 )
+	-- createActor( 'iron_ore', 30, 40 )
+	-- createActor( 'rubber', 60, 60 )
+	-- createActor( 'rubber', 100, 60 )
+	-- createActor( 'rubber', 120, 60 )
+	-- createActor( 'rubber', 30, 60 )
+	-- createActor( 'wood', 60, 80 )
+	-- createActor( 'wood', 60, 80 )
+	-- createActor( 'wood', 100, 80 )
+	-- createActor( 'wood', 30, 80 )
+	-- createActor( 'copper', 60, 100 )
+	-- createActor( 'copper', 60, 100 )
+	-- createActor( 'copper', 100, 100 )
+	-- createActor( 'copper', 30, 100 )
+	-- createActor( 'gold_ore', 60, 110 )
+	-- createActor( 'gold_ore', 60, 110 )
+	-- createActor( 'gold_ore', 100, 110 )
+	-- createActor( 'gold_ore', 30, 110 )
 end
 
-local healthDrop = { config = 'healthPickup', chance = 20, tries = 2 }
+function startGame()
+
+	music( 'ld46', 0.2 )
+
+	worldState = {}
+
+	blockData = {}
+	
+	restoreInitialMap()
+
+	actors = {}
+	robot = nil
+	player = nil
+
+	fixupBlocks()
+
+	chromatic_aberration_ = DEFAULT_CHROMATIC_ABERRATION
+	barrel_ = 				DEFAULT_BARREL
+	bloom_intensity_ = 		DEFAULT_BLOOM_INTENSITY
+	burn_in_ = DEFAULT_BURN_IN
+
+	color_multiplied_r = 1
+	color_multiplied_g = 1
+	color_multiplied_b = 1
+	color_multiplied_r_smoothed = 0
+	color_multiplied_g_smoothed = 0
+	color_multiplied_b_smoothed = 0
+
+	barrel_ = DEFAULT_BARREL
+	barrel_smoothed = barrel_
+
+
+	player = createActor( 'player', 9 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+
+	populateWithActors()
+
+	updateViewTransform()
+end
+
+function updateShadow( actor )
+	if actor.shadowHost == nil then return end
+	actor.pos:set( actor.shadowHost.pos )
+end
+
+function drawShadow( actor )
+	local outerRadius = math.min( actor.shadowHost.config.dims.x, actor.shadowHost.config.dims.y ) * 0.5
+	local innerRadius = outerRadius * 0.75
+	fillp( ~0x8421 )
+	circ( actor.pos.x, actor.pos.y, outerRadius, 0xFF000000, outerRadius - innerRadius )
+
+	fillp( 0xA5A5 )
+	circfill( actor.pos.x, actor.pos.y, innerRadius, 0xFF000000 )
+	fillp( 0 )
+end
+
+GLOBAL_DRAG = 0.175
+
+function updateHeldItem( holder, item )
+	item.pos = lerp( item.pos, holder.pos + vec2:new( 0, 1 + math.sin( ticks * 0.06 ) * 1.5 ), 0.08 )
+	item.lastPos:set( item.pos )
+	item.vel:set( 0, 0 )
+	item.z = lerp( item.z or 0, 16, 0.08 )
+end
+
+function updatePlayer( actor )
+	if player.heldItem then
+		updateHeldItem( player, player.heldItem )
+	end
+end
+
+function combineResources( a, b )
+	assert( a.configKey == b.configKey )
+
+	local total = ( a.count or 1 ) + ( b.count or 1 )
+
+	a.count = math.min( total, a.config.maxCount or RESOURCE_MAX_COUNT_DEFAULT )
+	a.pos:set( b.pos )
+	a.lastPos:set( a.pos )
+	a.vel:set( 0 )
+
+	deleteActor( b )
+end
+
+function actorMayCombine( actor )
+	return actor.config.mayCombine and not actor.held
+end
+
+function onResourcesCollide( a, b )
+	if a.configKey == b.configKey and actorMayCombine( a ) and actorMayCombine( b ) then
+		combineResources( a, b )
+	end
+end
+
+ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 15
+FUEL_LOSS_PER_TICK = 1
+FUEL_LOSS_PER_SECOND = FUEL_LOSS_PER_TICK * 60
+ROBOT_FUEL_PER_WOOD = FUEL_LOSS_PER_SECOND * ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS
+ROBOT_MAX_FUEL = ROBOT_FUEL_PER_WOOD * 9
+MAX_FUEL_FOR_NEEDINESS = FUEL_LOSS_PER_SECOND * 30
+MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY = FUEL_LOSS_PER_SECOND * 5
+MIN_FUEL_FOR_MAX_GUAGE_FLICKER = MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY + FUEL_LOSS_PER_SECOND * 5
+
+function onRobotOutOfFuel( actor )
+	if not worldState.gameLost then
+		worldState.gameLost = true
+		color_multiplied_g = 0
+		color_multiplied_b = 0
+		music( '' )
+		sfx( 'fail' )
+	end
+end
+
+function onRobotCompletedAllRecipes()
+	if not worldState.gameWon then
+		worldState.gameWon = true
+		sfx( 'win' )
+	end
+end
+
+function robotTick( actor )
+	if worldState.robotFound and not worldState.robotDialoguing then
+		actor.fuel = actor.fuel ~= nil and actor.fuel or actor.config.fuel
+		actor.fuel = actor.fuel - FUEL_LOSS_PER_TICK
+
+		local fuelNeediness = clamp( proportion( actor.fuel, MAX_FUEL_FOR_NEEDINESS, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY ), 0, 1 ) ^ 2
+		
+		-- trace( actor.fuel .. ' ' .. fuelNeediness)
+
+		chromatic_aberration_ = lerp( DEFAULT_CHROMATIC_ABERRATION, 1.0, fuelNeediness )
+		barrel_ = 				lerp( DEFAULT_BARREL, 				0.7, fuelNeediness )
+		bloom_intensity_ = 		lerp( DEFAULT_BLOOM_INTENSITY, 		0.2, fuelNeediness )
+		burn_in_ =		 		lerp( DEFAULT_BURN_IN,		 		0.5, fuelNeediness )
+
+		local fuelDesperation = clamp( proportion( actor.fuel, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY, 0 ), 0, 1 )
+		color_multiplied_g = lerp( 1.0, 0.5, fuelDesperation )
+		color_multiplied_b = lerp( 1.0, 0.5, fuelDesperation )
+
+		if actor.fuel <= 0 then
+			actor.fuel = 0
+			onRobotOutOfFuel( actor )
+		end
+	end
+end
+
+
+RESOURCE_MAX_COUNT_DEFAULT = 9
 
 actorConfigurations = {
 	player = {
-		dims = vec2:new( 10, 4 ),
-		maxThrust = 2.52,
-		drag = 0.60,
-		ulOffset = vec2:new( 16, 29 ),
-		tileSizeX = 2,
-		tileSizeY = 2,
-		flickerSpeed = 4.0,
-		mayCollideWithTerrain = true,
-		mayInitiateActorCollision = true,
-		attackRadius = 12,
-		maxHealth = 5,
-		knockbackPower = 20,
-		hurtTimeout = 2,
-		damagedSound = 'ouch_01',
+		dims = vec2:new( 7, 13 ),
+		maxThrust = 0.35,
+		ulOffset = vec2:new( 9, 15 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
 		animations = {
-			idle = {
-				speed = 0.1,
-				frames = { 0, 0, 2, 2, 4, 6 }
-			},
-			idle_sword = {
-				speed = 0.1,
-				frames = { 64, 64, 66, 66, 68, 70 }
-			},
-			run = {
-				speed = 0.2,
-				frames = { 128, 128, 130, 130, 132, 134 }
-			},
-			run_sword = {
-				speed = 0.2,
-				frames = { 192, 192, 194, 194, 196, 198 }
-			},
-			attack = {
-				speed = 0.4,
-				frames = { 256, 256, 258, 258, 258, 260, 260, 260, 260 }
-			},
-			die = {
-				speed = 0.1,
-				frames = { 262, 262, 262, 264, 264, 266, 266, 266, 
-					{ 	
-						frame = 266, 
-						event = function( actor )
-							actor.animPlaying = false
-						end 
-					}
-				}
-			}
+			idle_south = { speed = 0, frames = { 1 }},
+			run_south =  { speed = 0.4, frames = range( 2, 2 + 7 )},
+			idle_north = { speed = 0, frames = { 33 }},
+			run_north =  { speed = 0.4, frames = range( 34, 34 + 7 )},
+			idle_side = { speed = 0, frames = { 65 }},
+			run_side = { speed = 0.4, frames = range( 66, 66 + 7 ) },
 		},
-		amendAnimName = function( self, animName )			
-			if actorHas( self, 'sword' ) then
-				animName = animName .. '_sword'
-			end
-			return animName
+		amendAnimName = function( self, animName )
+			if self.heading:majorAxis() == 0 then return animName .. '_side' end
+
+			return animName .. '_' .. ( self.heading.y < 0 and 'north' or 'south' )
 		end,
-		onActorCollisionStart = function( self, other )
-			if other.config.pickup ~= nil then
-				
-				if actorAge( other ) >= 0.6 then
-				
-					if other.config.pickup.onPickedUp ~= nil then
-						if other.config.pickup.onPickedUp( other, self ) then
-							return
-						end
-					end
-
-					actorGain( self, other )
-
-					if other.config.pickup.sound ~= nil then
-						sfx( other.config.pickup.sound )
-					end
-
-					deleteActor( other )
-
-				end
-
-			elseif other.config.mob ~= nil and not other.config.inert then
-				local normal = ( self.pos - other.pos ):normal()
-				self.knockback = normal * other.config.knockbackPower
-				other.knockback = normal * ( other.config.knockbackPower * -0.5 )
-
-				healthFlash = 1.0
-
-				chromatic_aberration_smoothed = 2.0
-				
-				local healthRemaining = ( self.health - 1 ) / self.config.maxHealth
-
-				color_multiplied_g_smoothed = healthRemaining
-				color_multiplied_b_smoothed = healthRemaining
-
-				actorTakeDamage( self, 1 )
-			elseif other.config.name == 'market' then
-				onPlayerTouchedMarket( other )
-			elseif other.config.name == 'husband_jail' then
-				onPlayerTouchedJail( other )
-			elseif other.config.name == 'husband_free' then
-				onPlayerTouchedFreeHusband( other )
-			elseif other.config.name == 'twins' then
-				onPlayerTouchedTwins( other )
-			elseif other.config.name == 'child' then
-				onPlayerTouchedChild( other )
-			end
-		end
+		tick = updatePlayer,
 	},
-	market = {
-		dims = vec2:new( 40, 8 ),
-		ulOffset = vec2:new( 26, 64 ),
-		tileSizeX = 4,
-		tileSizeY = 4,
-		inert = true,
+	shadow = {
+		dims = vec2:new( 0, 0 ),
+		ulOffset = vec2:new( 0, 8 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		nonColliding = true,
+		inert = false,
+		tick = updateShadow,
+		draw = drawShadow,
+	},
+	robot = {
+		tick = robotTick,
+		dims = vec2:new( 24, 26 ),
+		ulOffset = vec2:new( 16, 34 ),
+		nonColliding = true,
 		fadeForPlayer = true,
-		nonColliding = false,
-		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { spriteIndex( 4, 28 ) }
-			}
-		},
-	},
-	shopkeeper = {
-		dims = vec2:new( 30, 16 ),
-		ulOffset = vec2:new( 16, 39 ),
 		tileSizeX = 2,
 		tileSizeY = 2,
+		animations = {
+			idle = { speed = 0.1, frames = { 10, 12, 14 }},
+		},
+	},
+	tree = {
 		inert = true,
-		fadeForPlayer = true,
 		nonColliding = true,
-		animations = {
-			idle = {
-				speed = 0.12,
-				frames = { 8, 10, 8, 10, 8, 10, 8, 10, 8, 8, 8, 8, }
-			}
-		},
-	},
-	outhouse = {
-		dims = vec2:new( 50, 61 ),
-		ulOffset = vec2:new( 21, 64 ),
-		tileSizeX = 4,
-		tileSizeY = 4,
-		inert = true,
 		fadeForPlayer = true,
-		nonColliding = false,
-		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { spriteIndex( 8, 28 ) }
-			}
-		},
-	},	
-	house1 = {
-		dims = vec2:new( 86, 89 ),
-		ulOffset = vec2:new( 48, 91 ),
-		tileSizeX = 6,
-		tileSizeY = 6,
-		inert = true,
-		fadeForPlayer = true,
-		nonColliding = false,
-		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { spriteIndex( 12, 26 ) }
-			}
-		},
-	},	
-	house2 = {
-		dims = vec2:new( 112, 96 ),
-		ulOffset = vec2:new( 50, 96 ),
-		tileSizeX = 8,
-		tileSizeY = 6,
-		inert = true,
-		fadeForPlayer = true,
-		nonColliding = false,
-		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { spriteIndex( 18, 26 ) }
-			}
-		},
-	},
-	jail = {
-		dims = vec2:new( 96, 100 ),
-		ulOffset = vec2:new( 60, 105 ),
-		tileSizeX = 9,
-		tileSizeY = 7,
-		inert = true,
-		fadeForPlayer = true,
-		nonColliding = false,
-		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { spriteIndex( 23, 19 ) }
-			}
-		},
-	},
-	husband_jail = {
-		dims = vec2:new( 24, 28 ),
-		ulOffset = vec2:new( 20, 35 ),
-		tileSizeX = 2,
-		tileSizeY = 2,
-		inert = true,
-		fadeForPlayer = true,
-		nonColliding = true,
-		animations = {
-			idle = {
-				speed = 0.08,
-				frames = { 16, 16, 16, 12, 14, 12 }
-			}
-		},
-	},
-	husband_free = {
-		dims = vec2:new( 14, 31 ),
-		ulOffset = vec2:new( 16, 32 ),
-		tileSizeX = 2,
-		tileSizeY = 2,
-		inert = true,
-		fadeForPlayer = true,
-		nonColliding = true,
-		animations = {
-			idle = {
-				speed = 0.2,
-				frames = { 76 }
-			}
-		},
-	},
-	twins = {
-		dims = vec2:new( 24, 24 ),
-		ulOffset = vec2:new( 16, 30 ),
-		tileSizeX = 2,
-		tileSizeY = 2,
-		inert = true,
-		fadeForPlayer = true,
-		nonColliding = true,
-		animations = {
-			idle = {
-				speed = 0.1,
-				frames = { 138, 140 }
-			}
-		},
-	},
-	child = {
-		dims = vec2:new( 16, 26 ),
-		ulOffset = vec2:new( 16, 30 ),
-		tileSizeX = 2,
-		tileSizeY = 2,
-		inert = true,
-		fadeForPlayer = true,
-		nonColliding = true,
-		animations = {
-			idle = {
-				speed = 0.08,
-				frames = { 200, 202, 204 }
-			}
-		},
-	},
-	sword_blockage = {
-		dims = vec2:new( 32, 64 ),
+		dims = vec2:new( 18, 56 ),
 		ulOffset = vec2:new( 16, 64 ),
 		tileSizeX = 2,
 		tileSizeY = 4,
-		inert = true,
-		fadeForPlayer = false,
-		nonColliding = false,
-		damagedSound = 'ouch_00',
 		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { spriteIndex( 10, 24 ) }
-			}
+			idle = { speed = 0, frames = { 320 }},
 		},
-		mob = {
-		},
-		onTakeDamage = function( actor )
-			setSwordBlockTilesBlocking( false )
-			actor.health = 0
-		end,
 	},
-	tree_large = {
-		dims = vec2:new( 96, 96 ),
-		ulOffset = vec2:new( 48, 87 ),
-		tileSizeX = 6,
-		tileSizeY = 6,
+	tree_rubber = {
 		inert = true,
-		fadeForPlayer = true,
 		nonColliding = true,
-		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { spriteIndex( 0, 22 ) }
-			}
-		},
-	},
-	tree_small = {
-		dims = vec2:new( 50, 44 ),
-		ulOffset = vec2:new( 24, 58 ),
-		tileSizeX = 4,
-		tileSizeY = 4,
-		inert = true,
 		fadeForPlayer = true,
-		nonColliding = true,
+		dims = vec2:new( 30, 43 ),
+		ulOffset = vec2:new( 24, 48 ),
+		tileSizeX = 3,
+		tileSizeY = 3,
 		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { spriteIndex( 6, 24 ) }
-			}
+			idle = { speed = 0, frames = { 322 }},
 		},
 	},
-	mushroom_red = {
-		humanReadableName = 'Shroom',
+	placement_poof = {
+		inert = true,
+		nonColliding = true,
+		ulOffset = vec2:new( 16, 0 ),
+		tileSizeX = 3,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0.25, frames = {					
+				224, 224+3*2, 224+3*3, 224+3*4, 224+3*5, 224+3*6, 224+3*7, 224+3*8,
+				{ 	
+					frame = 224+3*8, 
+					event = function( actor )
+						deleteActor( actor )
+					end 
+				}
+			} },
+		},
+	},
+	pickup_particles = {
+		inert = true,
+		nonColliding = true,
+		ulOffset = vec2:new( 8, 16 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0.35, frames = {					
+				128, 128+1, 128+2, 128+3, 128+4, 128+5, 128+6, 128+7, 128+8, 128+9, 128+10, 128+11, 128+12, 128+13, 128+14,
+				{ 	
+					frame = 128+15, 
+					event = function( actor )
+						deleteActor( actor )
+					end 
+				}
+			} },
+		},
+	},
+	conveyor = {
+		mayBePickedUp = true,
+		mayCombine = true,
+		fadeForPlayer = true,
+		convertToBlockWhenPossible = true,
+		blockPlacementType = { 261, 261+32, 261+32*2, 261+32*3 } ,
 		dims = vec2:new( 16, 16 ),
-		ulOffset = vec2:new( 6, 11 ),
-		iconOffsetY = -1,
+		ulOffset = vec2:new( 8, 16 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
 		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { 92 }
-			}
+			idle = { speed = 0, frames = { 261 }},
 		},
-		pickup = { invColor = 0xFFFF0000, sound = 'pickup_00' },
 	},
-	crystal = {
-		humanReadableName = 'Gem',
-		dims = vec2:new( 11, 13 ),
-		ulOffset = vec2:new( 8, 13 ),
-		iconOffsetY = -2,
+	oven = {
+		mayBePickedUp = true,
+		mayCombine = true,
+		fadeForPlayer = true,
+		convertToBlockWhenPossible = true,
+		blockPlacementType = { 512, 512, 512, 512 } ,
+		dims = vec2:new( 16, 16 ),
+		ulOffset = vec2:new( 8, 16 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
 		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { 29 }
-			}
+			idle = { speed = 0, frames = { 512 }},
 		},
-		pickup = { invColor = 0xFFfff8ec, sound = 'pickup_00' },
+	},
+	combiner = {
+		mayBePickedUp = true,
+		mayCombine = true,
+		fadeForPlayer = true,
+		convertToBlockWhenPossible = true,
+		blockPlacementType = { 515, 515, 515, 515 } ,
+		dims = vec2:new( 16, 16 ),
+		ulOffset = vec2:new( 8, 16 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 515 }},
+		},
+	},
+	sensor = {
+		mayBePickedUp = true,
+		mayCombine = true,
+		fadeForPlayer = true,
+		convertToBlockWhenPossible = true,
+		blockPlacementType = { 517, 517, 517, 517 },
+		dims = vec2:new( 16, 16 ),
+		ulOffset = vec2:new( 8, 16 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 521 }},
+		},
+	},
+	harvester = {
+		mayBePickedUp = true,
+		mayCombine = true,
+		fadeForPlayer = true,
+		convertToBlockWhenPossible = true,
+		blockPlacementType = { 519, 519, 519, 519 } ,
+		dims = vec2:new( 16, 16 ),
+		ulOffset = vec2:new( 8, 16 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 522 }},
+		},
+	},
+
+	-- RESOURCES
+	iron_ore = {
+		mayBePickedUp = true,
+		mayCombine = true,
+		dims = vec2:new( 7, 7 ),
+		ulOffset = vec2:new( 8, 11 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 192 }},
+		},
+	},
+	iron = {
+		mayBePickedUp = true,
+		mayCombine = true,
+		dims = vec2:new( 9, 8 ),
+		ulOffset = vec2:new( 9, 11 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 193 }},
+		},
+	},
+	copper = {
+		mayBePickedUp = true,
+		mayCombine = true,
+		dims = vec2:new( 9, 8 ),
+		ulOffset = vec2:new( 9, 11 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 194 }},
+		},
+	},
+	gold_ore = {
+		mayBePickedUp = true,
+		mayCombine = true,
+		dims = vec2:new( 7, 7 ),
+		ulOffset = vec2:new( 8, 11 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 195 }},
+		},
+	},
+	gold = {
+		mayBePickedUp = true,
+		mayCombine = true,
+		dims = vec2:new( 9, 8 ),
+		ulOffset = vec2:new( 9, 11 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0, frames = { 196 }},
+		},
 	},
 	wood = {
-		humanReadableName = 'Wood',
-		dims = vec2:new( 14, 13 ),
+		mayBePickedUp = true,
+		mayCombine = true,
+		dims = vec2:new( 11, 6 ),
 		ulOffset = vec2:new( 8, 11 ),
-		iconOffsetY = -3,
+		tileSizeX = 1,
+		tileSizeY = 1,
 		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { 125 }
-			}
-		},
-		pickup = { invColor = 0xFFaf967e, sound = 'pickup_00' },
-	},
-	coin = {
-		humanReadableName = 'Coin',
-		dims = vec2:new( 6, 6 ),
-		ulOffset = vec2:new( 8, 8 ),
-		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { 30 }
-			}
-		},
-		pickup = {
-			onPickedUp = function( actor, by )
-				by.coins = by.coins + 1
-				coinFlash = 1
-				return false
-			end,
-			sound = 'coin_00' 
+			idle = { speed = 0, frames = { 197 }},
 		},
 	},
-	healthPickup = {
-		humanReadableName = 'Health',
-		dims = vec2:new( 12, 12 ),
-		ulOffset = vec2:new( 8, 8 ),
+	rubber = {
+		mayBePickedUp = true,
+		mayCombine = true,
+		dims = vec2:new( 7,6 ),
+		ulOffset = vec2:new( 8, 10 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
 		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { spriteIndex( 31, 3 ) }
-			}
-		},
-		pickup = { 
-			sound = 'pickup_01',
-			onPickedUp = function( actor, by )
-				if by.health >= by.config.maxHealth then
-					healthFlash = 1.0
-					return true
-				end
-				by.health = math.min( by.health + 1, by.config.maxHealth )
-				return false
-			end
+			idle = { speed = 0, frames = { 198 }},
 		},
 	},
-	sword = {
-		humanReadableName = 'Sword',
-		dims = vec2:new( 16, 14 ),
-		ulOffset = vec2:new( 8, 16 ),
+	stone = {
+		mayBePickedUp = true,
+		mayCombine = true,
+		dims = vec2:new( 8,11 ),
+		ulOffset = vec2:new( 9, 10 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
 		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { spriteIndex( 30, 1 ) }
-			}
-		},
-		pickup = 
-		{ 
-			sound = 'powerup_00',
+			idle = { speed = 0, frames = { 199 }},
 		},
 	},
-	slime = {
-		dims = vec2:new( 11, 9 ),
-		ulOffset = vec2:new( 17, 28 ),
-		mayCollideWithTerrain = true,
-		tileSizeX = 2,
-		tileSizeY = 2,
-		hurtTimeout = 1.5,
-		knockbackPower = 10,
-		maxHealth = 2,
-		damagedSound = 'attack_00',
+	chip = {
+		mayBePickedUp = true,
+		mayCombine = true,
+		dims = vec2:new( 10, 8 ),
+		ulOffset = vec2:new( 9, 12 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
 		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { 320 }
-			},
-			run = {
-				speed = 0.1,
-				velScalar = 0.2,
-				frames = { 324, 324, 324, 320, 320, 322, 322, }
-			},
-		},
-		mob = {
-			drops = {
-				{ config = 'slimeDrop', chance = 50, tries = 2 },
-				healthDrop,
-			}
-		},
-		ai = {
-			initialAction = wander,
-			awarenessRadius = 80,
-			alertSound = 'alert_02',
-		},
-	},
-	rat = {
-		dims = vec2:new( 34, 15 ),
-		ulOffset = vec2:new( 25, 28 ),
-		mayCollideWithTerrain = true,
-		tileSizeX = 4,
-		tileSizeY = 2,
-		hurtTimeout = 1,
-		knockbackPower = 15,
-		damagedSound = 'attack_00',
-		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { 384 }
-			},
-			run = {
-				speed = 0.1,
-				velScalar = 0.2,
-				frames = { 388, 388, 448, 384, 384, 384, }
-			}
-		},
-		mob = {
-			drops = {
-				{ config = 'meat', chance = 80, tries = 1 },
-				healthDrop,
-			}
-		},
-		ai = {
-			initialAction = wander,
-			awarenessRadius = 80,
-			alertSound = 'alert_00',
-		},
-	},
-	deathCloud = {
-		dims = vec2:new( 0, 0 ),
-		ulOffset = vec2:new( 16, 16 ),
-		tileSizeX = 2,
-		tileSizeY = 2,
-		animations = {
-			idle = {
-				speed = 0.2,
-				frames = { 72, 74, 74, 136, 136, 136,
-					{ frame = 136, event = deleteActor }
-				},
-			}
-		},
-	},
-	slimeDrop = {
-		humanReadableName = 'Slime',
-		dims = vec2:new( 16, 12 ),
-		ulOffset = vec2:new( 8, 6 ),
-		iconOffsetY = -1,
-		animations = {
-			idle = {
-				speed = 0,
-				frames = { spriteIndex( 28, 1 ) }
-			},
-		},
-		pickup = 
-		{
-			invColor = 0XFF78cb3f, 
-			sound = 'pickup_00',
-		},
-	},
-	meat = {
-		humanReadableName = 'Meat',
-		dims = vec2:new( 20, 16 ),
-		ulOffset = vec2:new( 10, 14 ),
-		iconOffsetY = -4,
-		animations = {
-			idle = {
-				speed = 0,
-				frames = { spriteIndex( 29, 1 ) }
-			},
-		},
-		pickup = 
-		{ 
-			invColor = 0xFFff9585,
-			sound = 'pickup_00',
-		},
-	},
-	rock_pile = {
-		dims = vec2:new( 29, 24 ),
-		ulOffset = vec2:new( 16, 29 ),
-		tileSizeX = 2,
-		tileSizeY = 2,
-		inert = true,
-		maxHealth = 1,
-		damagedSound = 'ouch_02',
-		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { spriteIndex( 6, 22 ) }
-			}
-		},
-		mob = {
-			drops = {
-				{ config = 'coin', chance = 20, tries = 4 },
-				{ config = 'healthPickup', chance = 10, tries = 1 },
-			}
-		},
-	},
-	sticks_pile = {
-		dims = vec2:new( 30, 24 ),
-		ulOffset = vec2:new( 16, 29 ),
-		tileSizeX = 2,
-		tileSizeY = 2,
-		inert = true,
-		maxHealth = 1,
-		damagedSound = 'ouch_00',
-		animations = {
-			idle = {
-				speed = 0.0,
-				frames = { spriteIndex( 8, 22 ) }
-			}
-		},
-		mob = {
-			drops = {
-				{ config = 'wood', chance = 30, tries = 3 },
-				{ config = 'coin', chance = 10, tries = 3 },
-				{ config = 'healthPickup', chance = 10, tries = 2 },
-				{ config = 'slime', chance = 10, tries = 1 },
-			}
+			idle = { speed = 0.1, frames = { 200, 201 }},
 		},
 	},
 }
 
-function fixupConfig( config, name )
-	config.tileSizeX = config.tileSizeX or 1
-	config.tileSizeY = config.tileSizeY or 1
-	config.drag = config.drag or 0.3
-	config.maxThrust = config.maxThrust or 0.35
-	config.flickerSpeed = config.flickerSpeed or 10.0
+function createShadowForActor( actor )
+	actor.shadow = createActor( 'shadow', actor.pos.x, actor.pos.y )
+	actor.shadow.shadowHost = actor
 end
 
-function fixupConfigs()
+function deleteActor( actor )
+	assert( actor ~= nil )
 
-	for key, config in pairs( actorConfigurations ) do
-		config.name = key
-		fixupConfig( config )
+	if actor.deleted then return end
+
+	-- trace( 'deleting actor ' .. actor.configKey )
+
+	if actor.shadow ~= nil then
+		actor.shadow.shadowHost = nil
+		deleteActor( actor.shadow )
 	end
 
+	actor.deleted = true
+	tableRemoveValue( actors, actor )
 end
-
-fixupConfigs()
 
 function createActor( configKey, x, y )
 	local config = actorConfigurations[ configKey ]
 	assert( config )
 
 	local actor = {
-		birthdate = now(),
+		configKey = configKey,
 		config = config,
+		birthdate = now(),
 		pos = vec2:new( x, y ),
 		lastPos = vec2:new( x, y ),
 		vel = vec2:new( 0, 0 ),
-		heading = vec2:new( -1, 0 ),
-		knockback = vec2:new( 0, 0 ),
-		knockbackDrag = 0.25,
-		hurtTimeoutEnd = nil,
+		thrust = vec2:new( 0, 0 ),
+		heading = vec2:new( 0, 1 ),
 		animFrame = 0,
 		lastFrame = 0,
-		flickerColor = 0xFFFFFFFF,
-		occlusionOpacity = 1.0,
 		occluding = false,
-		hurtColor = 0,
-		mayCollideWithTerrain = config.mayCollideWithTerrain,
-		inventory = {},
-		attacking = false,
-		action = nil,
-		actionEndTime = nil,
-		health = config.maxHealth or 3,
-		animPlaying = true,
-		lastAnimation = nil,
-		collidingActors = {},
+		occlusionOpacity = 1.0
 	}
 
 	table.insert( actors, actor )
 
-	if actor.config.ai ~= nil and actor.config.ai.initialAction ~= nil then
-		actorPerformAction( actor, actor.config.ai.initialAction, randInRange( 1, 1 ))
-	end
+	-- trace( 'actors ' .. #actors)
 
 	return actor
 end
 
-function actorAge( actor )
-	return now() - actor.birthdate
-end
-
-function createItemDrop( actor, drop )
-	if drop.chance ~= nil then
-		if not pctChance( drop.chance ) then
-			return
-		end
-	end
-	local item = createActor( drop.config, actor.pos.x, actor.pos.y )
-	
-	item.vel = vec2:new( randInRange( 6, 12 ), 0 )
-	item.vel:rotate( randInRange( 0.0, math.pi * 2.0 ))
-end
-
-function actorDie( actor )
-
-	if actor == player then
-		playerDie()
-		return
-	end
-
-	-- item drops
-	if actor.config.mob ~= nil and actor.config.mob.drops ~= nil then
-		for _, drop in ipairs(actor.config.mob.drops) do
-			local count = drop.tries or 1
-			for i = 1, count do
-				createItemDrop( actor, drop )
-			end
-		end
-	end
-
-	-- puff of smoke
-	local cloud = createActor( 'deathCloud', actor.pos.x, actor.pos.y )
-
-	deleteActor( actor )
-end
-
-function playerDie()
-	player.health = 0
-
-	sfx( 'death_00' )
-
-	-- start death screen
-
-	startConversation({
-		{ 	
-			'YOU HAVE DIED',
-			'',
-			'You started with nothing,',
-			'you come back with',
-			'half your $$.'
-		},	
-		{ 	
-			'Try Again!',
-			"You'll win this time.",
-			'',
-			'(Press X)',
-		},
-	}, 
-	false,
-	function()
-		startGame()
-	end)
-end
-
-function actorPerformAction( actor, action, duration )
-	-- not an ai character?
-	if actor.config.ai == nil then return end
-
-	if actor.action == action then return end
-
-	if actor.action ~= nil then
-		-- aborting action. no current need for response.
-	end
-
-	actor.action = action
-	actor.actionEndTime = ( duration ~= nil ) and ( now() + duration ) or nil
-
-	if actor.action ~= nil and actor.action.start ~= nil then
-		actor.action.start( actor )
-	end
-end
-
-function actorUpdateActions( actor )
-	if actor.actionEndTime ~= nil and now() > actor.actionEndTime then
-		local finishingAction = actor.action
-
-		actor.action = nil
-		actor.actionEndTime = nil
-
-		if finishingAction and finishingAction.finish ~= nil then
-			finishingAction.finish( actor )
-		end
-	end
-
-	if actor.action ~= nil and actor.action.update ~= nil then
-		-- trace( 'updating action ' .. actor.action.name )
-		actor.action.update( actor )
-	end
+function effectiveVelocity( actor )
+	return actor.pos - actor.lastPos
 end
 
 function speed( actor )
 	return actor.vel:length()
+end
+
+function actorPlacementBlock( actor, placementDirectionCardinal )
+	if type( actor.config.blockPlacementType ) == 'number' then
+		return actor.config.blockPlacementType
+	elseif actor.config.blockPlacementType == nil then
+		return nil
+	else
+		return actor.config.blockPlacementType[ placementDirectionCardinal + 1 ]
+	end
 end
 
 function onFrameChanged( actor )
@@ -1254,106 +1327,27 @@ function actorSetFrame( actor, frame )
 	end
 end
 
-function actorCollisionRadius( actor )
-	return math.max( actor.config.dims.x, actor.config.dims.y )
-end
-
-function actorAttack( actor )
-
-	if actorHas( actor, 'sword' ) then
-		sfx( 'hit_swing_04', 0.2 )
-		actor.attacking = true
-		actorSetFrame( actor, 0 )
-	end
-end
-
-function actorsInCircle( center, radius )
-
-	local results = {}
-	for _, actor in ipairs(actors) do
-		if ( actor.pos - center ):length() - actorCollisionRadius( actor ) <= radius then
-			table.insert( results, actor )
-		end
-	end
-	return results
-end
-
-function maybeHurtVictim( attacker, victim )
-
-	if victim.config.mob ~= nil and not actorUntouchable( victim ) then
-		actorTakeDamage( victim, 1 )
-
-		victim.knockback = ( victim.pos - attacker.pos ):normal() * attacker.config.knockbackPower
-	end
-end
-
-function updateAttack( actor )
-	local attackAnim = actor.config.animations.attack
-	if attackAnim == nil then
-		actor.attacking = false
-		return
-	end
-
-	if not actor.attacking then return end
-
-	local frames = attackAnim.frames
-	if actor.animFrame >= #frames then
-		actor.attacking = false
-		return
-	end
-
-	-- hurting others?
-
-	if actor.animFrame >= 0 and actor.animFrame < 4 then
-		local victims = actorsInCircle( actor.pos - vec2:new( 0, 8 ), actor.config.attackRadius )
-	
-		for _, victim in ipairs( victims ) do
-			if victim ~= actor then
-				maybeHurtVictim( actor, victim )
-			end
-		end
-	end 
-end
-
-function actorHas( actor, itemName )
-	return actor.inventory[ itemName ] ~= nil and actor.inventory[ itemName ] > 0
-end
-
-function actorGain( actor, item )
-	local itemName = item.config.name
-	if actor.inventory[ itemName ] == nil then
-		actor.inventory[ itemName ] = 0
-	end
-	actor.inventory[ itemName ] = clampCommodity( actor.inventory[ itemName ] + 1 )
-end
-
-function effectiveVelocity( actor )
-	return actor.pos - actor.lastPos
-end
-
 function currentAnimation( actor )
 	local animations = actor.config.animations
 	
 	if animations == nil then return nil end
 
-	if actor.health <= 0 and animations.die ~= nil then
-		return animations.die
-	end
-
-	if actor.attacking and animations.attack ~= nil then
-		return animations.attack
-	end
-
-	local anim = ( math.abs( speed( actor )) > 0.1 ) and 'run' or 'idle'
-	if anim == 'run' and animations.run == nil then
-		anim = 'idle'
-	end
+	local anim = ( math.abs( actor.thrust:length() ) > 0.1 ) and 'run' or 'idle'
 
 	if actor.config.amendAnimName ~= nil then
 		anim = actor.config.amendAnimName( actor, anim )
 	end
 
 	return animations[ anim ]
+end
+
+function actorOccludingBounds( actor )
+	return {
+		left = actor.pos.x - actor.config.dims.x / 2,
+		top =  actor.pos.y - actor.config.dims.y,
+		right = actor.pos.x + actor.config.dims.x / 2,
+		bottom = actor.pos.y,
+	}
 end
 
 function actorBounds( actor )
@@ -1368,7 +1362,7 @@ function actorBounds( actor )
 end
 
 function actorVisualBounds( actor )
-	local ul = actor.pos - actor.config.ulOffset
+	local ul = actor.pos - actorULOffset( actor )
 
 	local wid = actor.config.tileSizeX * PIXELS_PER_TILE
 	local hgt = actor.config.tileSizeY * PIXELS_PER_TILE
@@ -1381,213 +1375,254 @@ function actorVisualBounds( actor )
 	}
 end
 
-function onPlayerTouchedMarket( market )
-	startMarket( market.market )
+function frameSpriteIndex( frame )
+	return ( type( frame ) == 'table' and frame.frame ) or frame
 end
 
-GOAL_AMOUNT = 100
-
-function onPlayerSpringsHusband( husband )
-	sfx( 'powerup_00' )
-	createActor( 'husband_free', husband.pos.x + 32, husband.pos.y + 16 )
-
-	deleteActor( husband )
+function actorColor( actor )
+	return actor.flickerColor or 0xFFFFFFFF
 end
 
-restartGameTime = nil
+function floatTermsToColor( r, g, b )
 
-function endGame()
-	-- pause game
-	restartGameTime = realNow() + 2
-
-	color_multiplied_r = 0
-	color_multiplied_g = 0
-	color_multiplied_b = 0
-end
-
-function onPlayerTouchedFreeHusband( husband )
-	startConversation( {
-		{
-			"Honey! YOU'RE AMAZING!",
-			"",
-			"You earned all that money",
-			"and paid off our debts!",
-		},
-		{
-			"Now we'll be happy again.",
-			"",
-			"You STARTED FROM NOTHING,",
-			"but now we have EVERYTHING!",
-		},
-		{
-			"Let's go home.",
-			"",
-			"(Score: " .. player.coins .. ")",
-			"",
-			"(Press X)",
-		},
-	},
-	nil,
-	function()		-- finish game
-		endGame()
-	end,
-	'family0',
-	'talk_husband' )
-end
-
-function onPlayerTouchedJail( husband )
-
-	if player.coins >= GOAL_AMOUNT then
-		onPlayerSpringsHusband( husband )
-		return
+	function term( x )
+		return math.floor( x * 0xFF )
 	end
 
-	local jailConversation = {
-		{
-			"Honey!",
-			"We're ruined!",
-		},
-		{
-			"Old Man Snuckers ran off with",
-			"all our money.",
-			"",
-			"We're broke!",
-		},
-		{
-			"They've thrown me in",
-			"debtor's prison!",
-			"",
-			"Our kids will starve.",
-		},
-		{
-			"If you can earn $" .. GOAL_AMOUNT,
-			"we could pay off our debts,",
-			"",
-			"We'd be happy again.",
-		},
-		{
-			"BUY LOW and SELL HIGH!",
-			"Some towns pay more for",
-			"items you can get for cheap",
-			"in other towns.",
-			"",
-			"GEMS especially!",
-		},
-		{
-			"We're STARTING FROM NOTHING.",
-			"",
-			"Please rescue us!",
-			'',
-			"(Press X)",
-		},
-	}
-	startConversation( jailConversation, nil, nil, 'family0', 'talk_husband' )
+	return 0xFF000000 | ( term( r ) << 16 ) | ( term( g ) << 8 ) | term( b )
 end
 
-function onPlayerTouchedTwins( actor )
-	local troubleConversation = {
-		randomElement( {
-			{
-				"We're hungry, Mommy.",
-				"",
-				"When will Daddy come home?"
-			},
-			{
-				"We're too tired to play.",
-				"",
-				"When will Daddy come home?"
-			},
-			{
-				"Why did they take",
-				"all our toys?",
-				"",
-				"It's lonely now."
-			},
-			{
-				"Can people eat leaves, Mommy?",
-				"",
-				"We're hungry."
-			},
-			{
-				"Don't cry anymore, Mommy.",
-				"",
-				"We'll take care of you."
-			},
-		})
-	}
+function colorToFloatTerms( color )
+	local r = ( color & 0x00FF0000 ) >> 16
+	local g = ( color & 0x0000FF00 ) >> 8
+	local b = ( color & 0x000000FF ) >> 0
 
-	local winConversation = {
-		{
-			"Yay!",
-			"",
-			"We knew you'd save us!",
-		}
-	}
+	function term( x )
+		return x / 0xFF
+	end
 
-	if player.coins >= GOAL_AMOUNT then
-		startConversation( winConversation, nil, nil, 'family0', 'talk_twins' )
-	else
-		startConversation( troubleConversation, nil, nil, 'family0', 'talk_twins' )
+	return term( r ), term( g ), term( b )
+end
+
+function colorLerp( a, b, alpha )
+	local ar, ag, ab = colorToFloatTerms( a )
+	local br, bg, bb = colorToFloatTerms( b )
+
+	return floatTermsToColor( lerp( ar, br, alpha ), lerp( ag, bg, alpha ), lerp( ab, bb, alpha ) )
+end
+
+function actorAdditiveColor( actor )
+	return actor.additiveColor or 0x00000000
+end
+
+function updateAnimation( actor )
+
+	if actor.animPlaying ~= nil and not actor.animPlaying then return end
+
+	local animation = currentAnimation( actor )
+	if animation ~= nil then
+		local frameStep = animation.speed
+		if animation.velScalar ~= nil then
+			frameStep = animation.speed + animation.velScalar * speed( actor )
+		end
+		actorSetFrame( actor, actor.animFrame + frameStep )
+	end	
+
+	if animation ~= actor.lastAnimation then
+		actor.lastAnimation = animation
+		if not animation.keepFrame then
+			actor.animFrame = 0
+		end
 	end
 end
 
-function onPlayerTouchedChild( actor )
-	local troubleConversation = {
-		randomElement( {
-			{
-				"Hi Mom!",
-				"",
-				"The other day I saw a sword",
-				"not far from here."
-			},
-			{
-				"Hi Mom!",
-				"",
-				"You can sell things you find",
-				"at the market."
-			},
-			{
-				"Hi Mom!",
-				"",
-				"I hear prices are higher",
-				"in other towns.",
-			},
-			{
-				"Hi Mom!",
-				"",
-				"I hear you can break rocks",
-				"to find Gems.",
-			},
-			{
-				"Hi Mom!",
-				"",
-				"Watch out for monsters",
-				"along the paths!",
-			},
-		})
-	}
+function actorOccludesPlayer( actor )
+	if player.pos.y > actor.pos.y then return false end
 
-	local winConversation = {
-		{
-			"Great job, Mom!",
-			"",
-			"Now Dad can come home!",
-			"",
-			"We won't have to starve!"
-		}
-	}
-	
-	if player.coins >= GOAL_AMOUNT then
-		startConversation( winConversation, nil, nil, 'family0', 'talk_boyo' )
+	local myBounds = actorOccludingBounds( actor )
+	local playerBounds = expandContractRect( actorOccludingBounds( player ), 0 )
+
+	return rectsOverlap( myBounds, playerBounds )
+end
+
+function bitPatternForAlpha( alpha )
+	local iAlpha = math.floor( alpha * 16 )
+	local pattern = 0
+
+	local bit = 1
+	for i = 0, iAlpha do
+		pattern = pattern | bit
+		bit = ( bit << 7 ) % 0xFFFF
+	end
+
+	return ~pattern
+end
+
+function actorOpacityForDither( actor )
+	return actor.occlusionOpacity or 1.0
+end
+
+function actorULOffset( actor )
+	local offset = actor.ulOffset or actor.config.ulOffset
+	assert( offset )
+
+	local z = actor.z or 0
+	return offset + vec2:new( 0, z )
+end
+
+function drawCount( count, x, y )
+	printShadowed( '' .. count, round( x ), round( y ), LIGHT_GRAY )
+end
+
+function drawActorCount( actor )
+	if actor.count ~= nil and actor.count > 1 then
+		local actorBounds = actorVisualBounds( actor )
+		local countPos = vec2:new( actorBounds.right - 4, actorBounds.top )
+		drawCount( actor.count, countPos.x, countPos.y )
+	end
+end
+
+function drawActor( actor )
+	local abortDraw = false
+	if actor.config.draw ~= nil then
+		abortDraw = actor.config.draw( actor )
+	end
+
+	if abortDraw then return end
+
+	local animation = currentAnimation( actor )
+	if animation == nil then return end
+
+	local frames = animation.frames
+
+	local cur_frame = math.floor( actor.animFrame ) % #frames
+
+	local sprite = frameSpriteIndex( frames[ cur_frame + 1 ] )
+
+	fillp( bitPatternForAlpha( actorOpacityForDither( actor ) ))
+
+	local flipX = actor.heading:majorAxis() == 0 and actor.heading.x > 0
+
+	local ulOffset = actorULOffset( actor )
+
+	spr( sprite, 
+		round( actor.pos.x - ulOffset.x ), 
+		round( actor.pos.y - ulOffset.y ), 
+		actor.config.tileSizeX, 
+		actor.config.tileSizeY, 
+		flipX,
+		false,
+		actorColor( actor ),
+		actorAdditiveColor( actor )
+	)
+
+	fillp( 0 )
+
+	drawActorCount( actor )
+end
+
+-- GLOBALS
+
+actorDrawMargin = PIXELS_PER_TILE
+
+-- TIME
+
+ticks = 0
+function now()
+	return ticks * 1 / 60.0
+end
+
+realTicks = 0
+function realNow()
+	return realTicks * 1 / 60.0
+end
+
+-- UPDATE
+
+function actorMayCollideWith( actor, other )
+	if actor.config.nonColliding then return false end
+	return true
+end
+
+function actorOnCollide( actor, other )
+
+	-- add to colliding actors if it's not there already
+	if actor.collidingActors ~= nil and actor.collidingActors[ other ] == nil then
+		actor.collidingActors[ other ] = true
+		if actor.config.onActorCollisionStart ~= nil then
+			actor.config.onActorCollisionStart( actor, other )
+		end
+	end
+
+	-- call the continual callback
+	if actor.config.onActorCollide ~= nil then
+		actor.config.onActorCollide( actor, other )
+	end
+end
+
+function actOnNotCollide( actor, other )
+	if actor.collidingActors ~= nil and actor.collidingActors[ other ] ~= nil then
+		actor.collidingActors[ other ] = nil
+		if actor.config.onActorCollisionEnd ~= nil then
+			actor.config.onActorCollisionEnd( actor, other )
+		end
+	end
+end
+
+function collideActorPair( actorA, actorB )
+	if not( actorMayCollideWith( actorA, actorB ) or actorMayCollideWith( actorB, actorA ) ) then
+		return 
+	end
+
+	local boundsA = actorBounds( actorA )
+	local boundsB = actorBounds( actorB )
+
+	if rectsOverlap( boundsA, boundsB ) then
+		actorOnCollide( actorA, actorB )
+		actorOnCollide( actorB, actorA )
 	else
-		startConversation( troubleConversation, nil, nil, 'family0', 'talk_boyo' )
+		actOnNotCollide( actorA, actorB )
+		actOnNotCollide( actorB, actorA )
+	end
+end
+
+function eachNearbyActorToPos( pos, radius, callback )
+	local tileX = worldToTile( pos.x )
+	local tileY = worldToTile( pos.y )
+
+	local radiusSquared = radius * radius
+
+	local radiusInTiles = math.max( 1, radius / PIXELS_PER_TILE )
+	for y = tileY - radiusInTiles, tileY + radiusInTiles do
+		for x = tileX - radiusInTiles, tileX + radiusInTiles do
+			forEachActorOnBlock( x, y, function( tileActor )
+				if ( tileActor.pos - pos ):lengthSquared() <= radiusSquared then
+					callback( tileActor )
+				end
+			end)		
+		end
+	end
+end
+
+function eachNearbyActorToActor( actor, radius, callback )
+	return eachNearbyActorToPos( actor.pos, radius, function( otherActor )
+		if otherActor ~= actor then
+			callback( otherActor )
+		end
+	end)
+end
+
+function collideActors()
+
+	for i, actor in ipairs( actors ) do
+		if actor ~= player then
+			collideActorPair( player, actor )
+		end
 	end
 end
 
 function collideActorWithTile( actor, tileX, tileY )
 	local bounds = actorBounds( actor )
-
-	-- trace( actorFoot( actor ).x .. ' ' .. actorFoot( actor ).y .. ' ' .. bounds.left .. ' ' .. bounds.top .. ' ' .. bounds.right .. ' ' .. bounds.bottom )
 
 	local tileSprite = mget( tileX, tileY )
 
@@ -1650,126 +1685,29 @@ function collideActorWithTerrain( actor )
 	return false
 end
 
-function actorTakeDamage( actor, amount )
-	if actor.health <= 0 then return end
 
-	if actorUntouchable( actor ) then return end
-
-	if actor.config.damagedSound ~= nil then
-		sfx( actor.config.damagedSound )
-	end
-
-	if actor.config.damagedSound ~= nil then
-		sfx( actor.config.damagedSound )
-	end
-
-	if actor.config.onTakeDamage ~= nil then
-		actor.config.onTakeDamage( actor )
-	end
-
-	actor.hurtColor = 1.0
-
-	actor.health = actor.health - ( amount or 1 )
-
-	-- trace( 'mob hurt now health ' .. actor.health )
-
-	if actor.health <= 0 then
-		actorDie( actor )
-	else
-		if actor.config.hurtTimeout ~= nil then
-			actor.hurtTimeoutEnd = now() + actor.config.hurtTimeout
-		end
-
-		-- actorPerformAction( actor, flee, actor.config.hurtTimeout or 2.0 )
-	end
-end
-
-function actorMayCollideWith( actor, other )
-	if actor ~= player then return false end		 -- TODO prohibits actors colliding with actors
-	if actor.config.nonColliding then return false end
-
-	if other.config.mob ~= nil then
-		if other.config.mob.isFriendly then return false end
-		return actor.health > 0 and not actorUntouchable( actor ) and not actorUntouchable( other )
-	end
-
-	return true
-end
-
-function actorUntouchable( actor )
-	return actor.hurtTimeoutEnd ~= nil and now() <= actor.hurtTimeoutEnd
-end
-
-function actorColor( actor )
-	return actor.flickerColor or 0xFFFFFFFF
-end
-
-function colorMultiplyComponents( argb, alpha )
-
-	local terms = {
-		a = (( argb & 0xFF000000 ) >> 24 ) / 255.0,
-		r = (( argb & 0x00FF0000 ) >> 16 ) / 255.0,
-		g = (( argb & 0x0000FF00 ) >> 8 ) / 255.0,
-		b = (( argb & 0x000000FF ) ) / 255.0,
-	}
-
-	for key, term in pairs( terms ) do
-		terms[ key ] = math.floor( term * alpha * 0xFF )
-	end
-
-	return ( terms.a << 24 ) | ( terms.r << 16 ) | ( terms.g << 8 ) | terms.b
-end
-
-function floatTermToColor( term )
-	local component = math.floor( lerp( 0, 0xFF, term ))
-	return ( 0xFF << 24 ) | ( component << 16 ) | ( component << 8 ) | component
-end
-
-function actorAdditiveColor( actor )
-	return floatTermToColor( actor.hurtColor )
-end
-
-function updateAnimation( actor )
-
-	if not actor.animPlaying then return end
-
-	local animation = currentAnimation( actor )
-	if animation ~= nil then
-		local frameStep = animation.speed
-		if animation.velScalar ~= nil then
-			frameStep = animation.speed + animation.velScalar * speed( actor )
-		end
-		actorSetFrame( actor, actor.animFrame + frameStep )
-	end	
-
-	if animation ~= actor.lastAnimation then
-		actor.lastAnimation = animation
-		if not animation.keepFrame then
-			actor.animFrame = 0
-		end
-	end
+function actorCheckSurroundingTilesForNearbyActors( actor, radius ) 
+	eachNearbyActorToActor( actor, radius, function( otherActor )
+		onResourcesCollide( actor, otherActor )
+	end)
 end
 
 function updateActor( actor )
 
-	if not actor.config.inert then
-		actorUpdateActions( actor )
+	if actor.additiveColor ~= nil then
+		actor.additiveColor = colorLerp( actor.additiveColor, 0, 0.08 )
+	end
 
-		if actorUntouchable( actor ) then
-			actor.flickerColor = math.sin( now() * math.pi * 2.0 * (actor.config.flickerSpeed or 4.0 ) ) >= 0 and 0xFFFFFFFF or 0
-		else
-			actor.flickerColor = 0xFFFFFFFF
+	if not actor.inert and ( actor.config.inert == nil or not actor.config.inert ) then
+
+		if actor.config.tick ~= nil then
+			actor.config.tick( actor )
 		end
 
-		actor.hurtColor = lerp( actor.hurtColor, 0, 0.1 )
+		actor.lastPos:set( actor.pos )
 
-		actor.lastPos:set( actor.pos.x, actor.pos.y )
-
-		if actor.drag == nil then actor.drag = actor.config.drag end
-
-		actor.vel = actor.vel - actor.vel * actor.drag
-		actor.knockback = actor.knockback - actor.knockback * actor.knockbackDrag
-		actor.pos = actor.pos + actor.vel + actor.knockback
+		actor.vel = actor.vel - actor.vel * GLOBAL_DRAG
+		actor.pos = actor.pos + actor.vel
 
 		if actor.mayCollideWithTerrain then
 			for i = 1, 4 do
@@ -1777,247 +1715,805 @@ function updateActor( actor )
 				if not collided then break end
 			end
 		end
+
+		actorCheckSurroundingTilesForNearbyActors( actor, 10 )
+
+		if actor.config.convertToBlockWhenPossible then
+			tryPlaceAsBlock( actor, effectiveVelocity( actor ):cardinalDirection(), actor.pos )
+		end
 	end
 
 	updateAnimation( actor )
+end
 
-	if not actor.config.inert then
-		updateAttack( actor )
+function updateActorsOnBlocks()
+	blocksToActors = {}
+
+	for _, actor in ipairs( actors ) do
+		local actorTileX = worldToTile( actor.pos.x )
+		local actorTileY = worldToTile( actor.pos.y )
+
+		local tileIndex = worldTilePosToIndex( actorTileX, actorTileY )
+
+		if blocksToActors[ tileIndex ] == nil then blocksToActors[ tileIndex ] = {} end
+
+		table.insert( blocksToActors[ tileIndex ], actor )
 	end
 end
 
-function frameSpriteIndex( frame )
-	return ( type( frame ) == 'table' and frame.frame ) or frame
-end
+function updateActors()
 
-function actorOccludesPlayer( actor )
-	if player.pos.y > actor.pos.y then return false end
-
-	local myBounds = actorBounds( actor )
-	local playerBounds = expandContractRect( actorBounds( player ), 16 )
-
-	return rectsOverlap( myBounds, playerBounds )
-end
-
-function bitPatternForAlpha( alpha )
-	local iAlpha = math.floor( alpha * 16 )
-	local pattern = 0
-
-	local bit = 1
-	for i = 0, iAlpha do
-		pattern = pattern | bit
-		bit = ( bit << 7 ) % 0xFFFF
+	for _, actor in ipairs( actors ) do
+		updateActor( actor )
 	end
 
-	return ~pattern
+	-- collideActors()
+
+	-- clamp the player to the world
+	player.pos.x = clamp( player.pos.x, 16, WORLD_SIZE_PIXELS - 16 )
+	player.pos.y = clamp( player.pos.y, 16, WORLD_SIZE_PIXELS - 16 )
 end
 
-function drawActor( actor )
-	local animation = currentAnimation( actor )
-	if animation == nil then return end
+blockAnimSets = {
+	{ speed = 2, frames = range( 261, 264 ) },
+	{ speed = 2, frames = range( 265, 268 ) },
+	{ speed = 2, frames = range( 293, 293+3 ) },
+	{ speed = 2, frames = range( 297, 297+3 ) },
+	{ speed = 2, frames = range( 325, 325+3 ) },
+	{ speed = 2, frames = range( 329, 329+3 ) },
+	{ speed = 2, frames = range( 357, 357+3 ) },
+	{ speed = 2, frames = range( 361, 361+3 ) },
 
-	local frames = animation.frames
+	{ speed = 6, frames = range( 513, 514 ) },
+	{ speed = 6, frames = range( 519, 520 ) },
+}
 
-	local cur_frame = math.floor( actor.animFrame ) % #frames
-
-	local sprite = frameSpriteIndex( frames[ cur_frame + 1 ] )
-
-	fillp( bitPatternForAlpha( actor.occlusionOpacity ))
-
-	spr( sprite, 
-		round( actor.pos.x - actor.config.ulOffset.x ), 
-		round( actor.pos.y - actor.config.ulOffset.y ), 
-		actor.config.tileSizeX, 
-		actor.config.tileSizeY, 
-		actor.vel.x > 0,
-		false,
-		-- colorMultiplyComponents( actorColor( actor ), actor.occlusionOpacity ),
-		actorColor( actor ),
-		actorAdditiveColor( actor )
-	)
-
-	fillp( 0 )
+function worldTilePosToIndex( x, y )
+	return x + y * WORLD_SIZE_TILES
 end
 
-function rectsOverlap( rectA, rectB )
-	return not ( rectB.right < rectA.left or rectB.left > rectA.right or rectB.bottom < rectA.top or rectB.top > rectA.bottom )
-end
-
-function rectOverlapsPoint( rect, pos )
-	return rect.left <= pos.x and pos.x <= rect.right and rect.top <= pos.y and pos.y <= rect.bottom
-end
-
-function expandContractRect( rect, expansion )
-	rect.left = rect.left - expansion
-	rect.top = rect.top - expansion
-	rect.right = rect.right + expansion
-	rect.bottom = rect.bottom + expansion
-	return rect
-end
-
-
-function actorOnCollide( actor, other )
-
-	-- add to colliding actors if it's not there already
-	if actor.collidingActors[ other ] == nil then
-		actor.collidingActors[ other ] = true
-		if actor.config.onActorCollisionStart ~= nil then
-			actor.config.onActorCollisionStart( actor, other )
-		end
-	end
-
-	-- call the continual callback
-	if actor.config.onActorCollide ~= nil then
-		actor.config.onActorCollide( actor, other )
-	end
-end
-
-function actOnNotCollide( actor, other )
-	if actor.collidingActors[ other ] ~= nil then
-		actor.collidingActors[ other ] = nil
-		if actor.config.onActorCollisionEnd ~= nil then
-			actor.config.onActorCollisionEnd( actor, other )
-		end
-	end
-end
-
-function collideActorPair( actorA, actorB )
-	if not( actorMayCollideWith( actorA, actorB ) or actorMayCollideWith( actorB, actorA ) ) then
-		return 
-	end
-
-	local boundsA = actorBounds( actorA )
-	local boundsB = actorBounds( actorB )
-
-	-- trace( boundsA.left .. ' ' .. boundsA.right .. ' ' .. boundsB.left .. ' ' .. boundsB.right )
-
-	if rectsOverlap( boundsA, boundsB ) then
-		actorOnCollide( actorA, actorB )
-		actorOnCollide( actorB, actorA )
-	else
-		actOnNotCollide( actorA, actorB )
-		actOnNotCollide( actorB, actorA )
-	end
-end
-
-function collideActors()
-
-	for i, actor in ipairs( actors ) do
-		if actor ~= player then
-			if player.config.mayInitiateActorCollision or actor.config.mayInitiateActorCollision then
-				collideActorPair( player, actor )
+function forEachActorOnBlock( x, y, callback )
+	local tileIndex = worldTilePosToIndex( x, y )
+	local actors = blocksToActors[ tileIndex ]
+	if actors then
+		for _, actor in ipairs( actors ) do
+			if not actor.config.inert then
+				callback( actor )
 			end
 		end
 	end
 end
 
-function deleteOutOfBoundsActors()
-	local bounds = deleteActorBounds()
+CONVEYOR_FORCE = 0.106
 
-	for _, actor in ipairs( actors ) do
-		if not actor.surviveOutOfBounds and not rectOverlapsPoint( bounds, actor.pos ) then
-			deleteActor( actor )
+function conveyorTick( x, y, blockType, blockTypeIndex )
+	local direction = blockType.conveyor.direction
+	forEachActorOnBlock( x, y, function( actor )
+		actorConveyorForce( actor, direction * CONVEYOR_FORCE )
+	end)
+end
+
+function withBlockTypeAt( x, y, callback )
+	local blockType, blockTypeIndex = blockTypeAt( x, y )
+	if blockType == nil then return nil end
+
+	return callback( blockType, blockTypeIndex )
+end
+
+function blockAbuttingSouthVersion( blockTypeIndex, southIsConveyor )
+	local baseType = baseBlockTypeIndex( blockTypeIndex )
+
+	if southIsConveyor then
+		return baseType + 4
+	else
+		return baseType
+	end
+end
+
+function blockPickupVersion( blockTypeIndex )
+	return blockTypeForIndex( blockTypeIndex )
+end
+
+function conveyorOnPlaced( x, y, blockType, blockTypeIndex )
+	withBlockTypeAt( x, y + 1, function( southernBlockType, southernBlockTypeIndex )
+		withBaseBlockType( southernBlockTypeIndex, function( southernBlockTypeBase, southernBaseBlockTypeIndex )
+			local desiredIndex = blockAbuttingSouthVersion( blockTypeIndex, southernBlockTypeBase and southernBlockTypeBase.conveyor ~= nil )
+			mset( x, y, desiredIndex )
+		end)
+	end)
+end
+
+function amendedObject( object, callback )
+	local amended = table.copy( object )
+	callback( amended )
+	return amended
+end
+
+function tileCenterToWorldPos( x, y )
+	return ( vec2:new( x, y ) + vec2:new( 0.5, 0.5 )) * PIXELS_PER_TILE
+end
+
+function ingredientCount( list, configKey )
+	for _, item in ipairs( list ) do
+		if item[ 1 ] == configKey then return item[ 2 ] end
+	end
+	return 0
+end
+
+function consumeActor( actor )
+	actorCountAdd( actor, -1 )
+end
+
+function blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availableIngredients )
+	-- consume ingredients
+	for key, count in pairs( recipe.inputs ) do
+		for _, actor in ipairs( availableIngredients[ key ] ) do
+			if count <= 0 then break end
+			consumeActor( actor )
+			count = count - 1
+		end
+	end
+
+	-- cook
+	local data = dataForBlockAt( x, y )
+	data.doneTick = ticks + recipe.duration * 60
+	data.recipe = recipe
+
+	setBlockType( x, y, blockType.on_version )
+end
+
+function creationPositionFromBlockAt( x, y )
+	return tileCenterToWorldPos( x, y ) + vec2:new( 0, 14 )
+end
+
+function blockCompleteRecipe( x, y, blockType, blockTypeIndex )
+
+	local data = dataForBlockAt( x, y )
+	local recipe = data.recipe
+	if recipe == nil then return end
+
+	local creationPosition = creationPositionFromBlockAt( x, y )
+
+	if recipe.output then
+		for key, count in pairs( recipe.output ) do
+			for i = 1, count do
+				createActor( key, creationPosition.x, creationPosition.y )
+			end
+		end	
+	end
+
+	if recipe.effect then
+		recipe.effect( x, y, blockType, blockTypeIndex )
+	end
+
+	sfx( 'produce', 0.5 )
+end
+
+function blockUpdateCooking( x, y, blockType, blockTypeIndex )
+	local data = dataForBlockAt( x, y )
+	if data == nil then return end
+
+	local doneTick = data.doneTick or ticks
+	if ticks >= doneTick then
+		blockCompleteRecipe( x, y, blockType, blockTypeIndex )
+		setBlockType( x, y, blockType.off_version )
+	end
+end
+
+function blockCheckRecipes( x, y, blockType, blockTypeIndex )
+	local recipes = blockType.recipes
+	if recipes == nil or #recipes == 0 then return end
+
+	local availableIngredients = {}
+
+	eachNearbyActorToPos( tileCenterToWorldPos( x, y ), 16, function( actor )
+		if not actor.held then
+			if availableIngredients[ actor.configKey ] == nil then
+				availableIngredients[ actor.configKey ] = {}
+			end
+			-- insert the actor once for each of its counts
+			for i = 1, ( actor.count or 1 ) do
+				table.insert( availableIngredients[ actor.configKey ], actor )
+			end
+		end
+	end)
+
+	for i, recipe in ipairs( recipes ) do
+		if recipe.enabled == nil or recipe.enabled then
+			local satisfied = true
+			for key, count in pairs( recipe.inputs ) do
+				if availableIngredients[ key ] ~= nil then
+					local availableCount = #availableIngredients[ key ]
+					if( availableCount or 0 ) < count then
+						satisfied = false
+						break
+					end
+				else
+					satisfied = false
+					break
+				end
+			end
+
+			if satisfied then
+				blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availableIngredients )
+			end
 		end
 	end
 end
 
-function worldBoundsToTerrainBounds( bounds )
-	local tileBounds = {
-		left = 		worldToTile( bounds.left ),
-		top = 		worldToTile( bounds.top ),
-		right = 	worldToTile( bounds.right ),
-		bottom = 	worldToTile( bounds.bottom ),
-	}
-	return tileBounds
+local DEFAULT_HARVEST_RATE = 5
+
+function harvesterTick( x, y, blockType, blockTypeIndex )
+	-- get the block just north.
+
+	withBlockTypeAt( x, y - 1, function( neighborBlockType, neighborBlockTypeIndex )
+		withBaseBlockType( neighborBlockTypeIndex, function( neighborBlockTypeBase, neighborBaseBlockTypeIndex )
+			if neighborBlockTypeBase.harvestSource ~= nil then
+				local harvestRate = ( neighborBlockTypeBase.harvestRate or DEFAULT_HARVEST_RATE ) * 60
+				if ticks % harvestRate == 0 then
+					local creationPosition = creationPositionFromBlockAt( x, y )
+					createActor( neighborBlockTypeBase.harvestSource, creationPosition.x, creationPosition.y )
+					sfx( 'produce', 0.5 )
+				end
+			end
+		end)
+	end)
 end
 
-function populateForMapCell( x, y )
+function conveyorRotatedVersion( fromBlockTypeIndex, turnsClockwise )
+	local MIN = 256
+	local MAX = 256 + 32*4
 
-	local here = vec2:new( x, y )
-	local distFromHome = homeTown.pos:dist( player.pos )
-	local locationScalar = distFromHome / ( 128 * PIXELS_PER_TILE )
-	local wealthScalar = player.coins / GOAL_AMOUNT * 0.75
-	local difficultyScalar = clamp(( locationScalar + wealthScalar ) / 2, 0.0, 1.0 )
-	local overallScalar = 1.0
+	local turned = fromBlockTypeIndex + turnsClockwise * 32
 
-	local ratChance = overallScalar * lerp( 0.1, 2, difficultyScalar )
-	local slimeChance = overallScalar * lerp( 0.25, 3, difficultyScalar )
+	turned = MIN + ( turned - MIN ) % ( MAX - MIN )
 
-	local mushroomDrop = { config = 'mushroom_red', chance = 0.125, tries = 2 }
-	local woodDrop = { config = 'wood', chance = 0.1, tries = 1 }
-	local rockDrop = { config = 'rock_pile', chance = 0.1, tries = 1 }
-	local sticksDrop = { config = 'sticks_pile', chance = 0.4, tries = 1 }
-	local vergeSpawn = { mushroomDrop, woodDrop, rockDrop }
-	local leavesSpawn = {
-		{ config = 'slime', chance = slimeChance, tries = 1 },
-		{ config = 'rat', chance = ratChance, tries = 1 },
-		{ config = 'coin', chance = 0.05, tries = 1 },
-		{ config = 'healthPickup', chance = 0.01, tries = 1 },
-		rockDrop,		
-		sticksDrop,
-	}
+	return turned
+end
 
-	local mapSpriteSpawns = {
-		[spriteIndex(27,27)] = { 	-- forest
-			{ config = 'tree_large', chance = 10, tries = 1 },
-			{ config = 'tree_small', chance = 30, tries = 1 },		
-		},
-		[spriteIndex(30,27)] = leavesSpawn,
-		[spriteIndex(30,30)] = leavesSpawn,
-		[spriteIndex(27,30)] = { 	-- path
-			rockDrop,
-		},
-		[spriteIndex(26,26)] = vergeSpawn,
-		[spriteIndex(27,26)] = vergeSpawn,
-		[spriteIndex(28,26)] = vergeSpawn,
-		[spriteIndex(26,27)] = vergeSpawn,
-		[spriteIndex(28,27)] = vergeSpawn,
-		[spriteIndex(26,28)] = vergeSpawn,
-		[spriteIndex(27,28)] = vergeSpawn,
-		[spriteIndex(28,28)] = vergeSpawn,
-		[spriteIndex(26,29)] = vergeSpawn,
-		[spriteIndex(27,29)] = vergeSpawn,
-		[spriteIndex(28,29)] = vergeSpawn,
-		[spriteIndex(26,30)] = vergeSpawn,
-		[spriteIndex(28,30)] = vergeSpawn,
-		[spriteIndex(26,31)] = vergeSpawn,
-		[spriteIndex(27,31)] = vergeSpawn,
-		[spriteIndex(28,31)] = vergeSpawn,
-	} 
+function onConveyorTriggered( x, y, blockType, blockTypeIndex, turningOn )
+	if dataForBlockAt( x, y ).triggeredOn ~= turningOn then
+		mset( x, y, conveyorRotatedVersion( blockTypeIndex, turningOn and 1 or -1 ))
+	end
+end
 
-	local mapSprite = mget( x, y )
+function sensorChanged( x, y, blockType, blockTypeIndex, turningOn )
+	-- trigger or untrigger the south block
+	withBlockTypeAt( x, y + 1, function( southernBlockType, southernBlockTypeIndex )
+		withBaseBlockType( southernBlockTypeIndex, function( southernBlockTypeBase, southernBaseBlockTypeIndex )
+
+			if southernBlockTypeBase.onTriggered ~= nil then
+				southernBlockTypeBase.onTriggered( x, y + 1, southernBlockType, southernBlockTypeIndex, turningOn )
+			end
+			dataForBlockAt( x, y + 1 ).triggeredOn = turningOn
+		end)
+	end)
+end
+
+function sensorTick( x, y, blockType, blockTypeIndex, triggerIfSensed, toTypeIfTriggered )
+	local sensedActor = nil
+	forEachActorOnBlock( x, y - 1, function( actor )
+		if  not actor.held and 
+			actor ~= player and
+			actor.shadowHost == nil and
+			not actor.config.invisibleToSensors then
+			sensedActor = actor
+		end
+	end)		
+
+	if triggerIfSensed == ( sensedActor ~= nil ) then
+		sensorChanged( x, y, blockType, blockTypeIndex, triggerIfSensed )
+		mset( x, y, toTypeIfTriggered )
+	end
+end
+
+function sensorTickOff( x, y, blockType, blockTypeIndex )
+	sensorTick( x, y, blockType, blockTypeIndex, true, blockTypeIndex + 1 )
+end
+
+function sensorTickOn( x, y, blockType, blockTypeIndex )
+	sensorTick( x, y, blockType, blockTypeIndex, false, blockTypeIndex - 1 )
+end
+
+function reportIfNil( label, value )
+	trace( label .. ' nil? ' .. ( value == nil and 'true' or 'false' ) )
+end
+
+function robotOnCompletedRecipe()
+
+	sfx( 'eat_wood' )
+
+	-- reportIfNil( 'blockConfigs', blockConfigs )
+	-- reportIfNil( 'robot_base_off', blockConfigs.robot_base_off )
+	-- reportIfNil( 'blockConfigs', blockConfigs.robot_base_off.recipes )
+	-- reportIfNil( '2', blockConfigs.robot_base_off.recipes[ 2 ] )
+
+	local recipes = blockConfigs.robot_base_off.recipes
+
+	assert( robot.recipeSequence ~= nil )
+	assert( recipes[ robot.recipeSequence ] ~= nil )
 	
-	if mapSpriteSpawns[ mapSprite ] ~= nil then
-		local spawns = mapSpriteSpawns[ mapSprite ]
-		for _, spawn in ipairs( spawns ) do
-			local tries = spawn.tries or 1
-			for i = 1, tries do
+	if robot.recipeSequence > 1 then
+		recipes[ robot.recipeSequence ].enabled = false
+	end
 
-				local chance = spawn.chance
+	robot.recipeSequence = robot.recipeSequence + 1
 
-				if pctChance( chance ) then
+	if robot.recipeSequence > #recipes then
+		onRobotCompletedAllRecipes()
+	else
+		recipes[ robot.recipeSequence ].enabled = true
+	end
+end
 
-					if #actors >= desiredMaxActors then return end
+function robotOnWood( x, y, blockType, blockTypeIndex )
+	-- trace( 'robotOnWood' )
+	robot.fuel = math.min( ROBOT_MAX_FUEL, robot.fuel + ROBOT_FUEL_PER_WOOD )
+	guage.flashBrightness = 1
+	robot.additiveColor = 0xFFFFFF00
 
-					local point = vec2:new( 
-						randInRange( x * PIXELS_PER_TILE, (x+1) * PIXELS_PER_TILE ), 
-						randInRange( y * PIXELS_PER_TILE, (y+1) * PIXELS_PER_TILE )
-					)
+	if robot.recipeSequence == nil or robot.recipeSequence == 1 then
+		robot.recipeSequence = 1
+		robotOnCompletedRecipe()
+	end
+end
+function robotOnIron( x, y, blockType, blockTypeIndex )
+	-- trace( 'robotOnIron' )
+	robotOnCompletedRecipe()
+end
+function robotOnConveyor( x, y, blockType, blockTypeIndex )
+	-- trace( 'robotOnConveyor' )
+	robotOnCompletedRecipe()
+end
+function robotOnSensor( x, y, blockType, blockTypeIndex )
+	-- trace( 'robotOnSensor' )
+	robotOnCompletedRecipe()
+end
+function robotOnChip( x, y, blockType, blockTypeIndex )
+	-- trace( 'robotOnChip' )
+	robotOnCompletedRecipe()
+end
 
-					local configName = spawn.config
+ROBOT_NAME = '@73N'
 
-					-- don't spawn mobs in town
-					local config = actorConfigurations[ configName ]
+ROBOT_RECIPE_DURATION = 0
 
-					if config.mob == nil or not isInTown( point ) then
-						createActor( configName, point.x, point.y )
-					end
+function robotBaseClass()
+	return {
+		name = ROBOT_NAME,
+		sponsoredActorConfig = 'robot',
+		drawRecipes = false,
+		on_version = 290,
+		recipes = {
+			{
+				inputs = { wood = 1 },
+				effect = robotOnWood,
+				duration = ROBOT_RECIPE_DURATION,
+			},
+			{
+				enabled = false,
+				inputs = { iron = 4 },
+				effect = robotOnIron,
+				duration = ROBOT_RECIPE_DURATION,
+			},
+			{
+				enabled = false,
+				inputs = { conveyor = 9 },
+				effect = robotOnConveyor,
+				duration = ROBOT_RECIPE_DURATION,
+			},
+			{
+				enabled = false,
+				inputs = { sensor = 2 },
+				effect = robotOnSensor,
+				duration = ROBOT_RECIPE_DURATION,
+			},
+			{
+				enabled = false,
+				inputs = { chip = 1 },
+				effect = robotOnChip,
+				duration = 1.5,
+			},
+		},	
+		onPlaced = function( x, y, blockType, blockTypeIndex ) 
+			if robot == nil then
+				robot = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE + 22, ( y + 1 ) * PIXELS_PER_TILE - 1 )
+				robot.fuel = FUEL_LOSS_PER_SECOND * 60 * 4
+			end
+		end,
+		tick = function( x, y, blockType, blockTypeIndex )
+			blockCheckRecipes( x, y, blockType, blockTypeIndex )
+		end,
+	}
+end
+
+blockData = {}
+
+function dataForBlockAt( x, y )
+	local index = worldTilePosToIndex( x, y )
+	if blockData[ index ] == nil then blockData[ index ] = {} end
+	return blockData[ index ]
+end
+
+CONVEYOR_EXPLANATION = { 'When placing, direction', "depends on", "which way you're moving." }
+SENSOR_EXPLANATION = { 'Detects items.', 'Triggers Conveyors.' }
+HARVESTER_EXPLANATION = 'Gathers resources.'
+COMBINER_EXPLANATION = { 'Makes items and blocks.' }
+OVEN_EXPLANATION = 'Turns ore into metal.'
+
+blockConfigs = {
+	ground = {
+		mayBePlacedUpon = true,
+	},
+	conveyor = {
+		name = 'Conveyor',
+		explanation = CONVEYOR_EXPLANATION,
+		actorConfigName = 'conveyor',
+		conveyor = { direction = vec2:new( 0, -1 )},
+		onPlaced = conveyorOnPlaced,
+		tick = conveyorTick,
+		onTriggered = onConveyorTriggered,
+	},
+	harvester = {
+		name = 'Harvester',
+		explanation = HARVESTER_EXPLANATION,
+		actorConfigName = 'harvester',
+		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
+		tick = harvesterTick,
+	},
+	combiner_off = {
+		name = 'Combiner',
+		explanation = COMBINER_EXPLANATION,
+		actorConfigName = 'combiner',
+		on_version = 516,
+		recipes = {
+			{
+				inputs = { iron = 3, rubber = 2 },
+				output = { conveyor = 1 },
+				duration = 0.5,
+			},
+			{
+				inputs = { stone = 2, iron = 3 },
+				output = { harvester = 1 },
+				duration = 0.5,
+			},
+			{
+				inputs = { iron = 2, gold = 2 },
+				output = { sensor = 1 },
+				duration = 0.5,
+			}, 
+			{
+				inputs = { stone = 3, wood = 2 },
+				output = { oven = 1 },
+				duration = 0.5,
+			},
+			{
+				inputs = { oven = 1, copper = 3 },
+				output = { combiner = 1 },
+				duration = 0.5,
+			},
+			{
+				inputs = { copper = 9, gold = 9 },
+				output = { chip = 1 },
+				duration = 0.5,
+			},
+		},
+		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
+		tick = function( x, y, blockType, blockTypeIndex )
+			if worldState.robotFound then
+				blockCheckRecipes( x, y, blockType, blockTypeIndex )
+			end
+		end, 
+	},
+	combiner_on = {
+		name = 'Combiner',
+		explanation = COMBINER_EXPLANATION,
+		actorConfigName = 'combiner',
+		off_version = 515,
+		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
+		tick = function( x, y, blockType, blockTypeIndex )
+			blockUpdateCooking( x, y, blockType, blockTypeIndex )
+		end,
+	},
+	sensor_off = {
+		name = 'Sensor',
+		explanation = SENSOR_EXPLANATION,
+		actorConfigName = 'sensor',
+		on_version = 518,
+		tick = sensorTickOff,
+	},
+	sensor_on = {
+		name = 'Sensor',
+		explanation = SENSOR_EXPLANATION,
+		actorConfigName = 'sensor',
+		off_version = 517,
+		tick = sensorTickOn,
+	},
+	tree_base = {
+		sponsoredActorConfig = 'tree',
+		harvestSource = 'wood',
+		harvestRate = 10,
+		onPlaced = function( x, y, blockType, blockTypeIndex ) 
+			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
+		end,
+	},
+	rubber_tree_base = {
+		sponsoredActorConfig = 'tree_rubber',
+		harvestSource = 'rubber',
+		harvestRate = 12,
+		onPlaced = function( x, y, blockType, blockTypeIndex ) 
+			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
+		end,
+	},
+	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 15 },
+	source_gold_ore = { name = 'Gold Ore', harvestSource = 'gold_ore', harvestRate = 60 }, 
+	source_copper = { name = 'Copper', harvestSource = 'copper', harvestRate = 20 }, 
+	source_stone = { name = 'Stone', harvestSource = 'stone', harvestRate = 12 }, 
+	robot_base_off = robotBaseClass(),
+	robot_base_on = {
+		drawRecipes = false,
+		off_version = 288,
+		tick = function( x, y, blockType, blockTypeIndex )
+			blockUpdateCooking( x, y, blockType, blockTypeIndex )
+		end,
+	},
+}
+
+blockTypes = {
+	[261] = blockConfigs.conveyor,
+	[261+4] = {
+		baseType = 261,
+	},
+	[261+32] = amendedObject( blockConfigs.conveyor, function( conveyor ) 
+		conveyor.conveyor = { direction = vec2:new( 1, 0 ) }
+	end),
+	[261+32+4] = {
+		baseType = 261+32,
+	},
+	[261+32*2] = amendedObject( blockConfigs.conveyor, function( conveyor ) 
+		conveyor.conveyor = { direction = vec2:new( 0, 1 ) }
+	end),
+	[261+32*2+4] = {
+		baseType = 261+32*2,
+	},
+	[261+32*3] = amendedObject( blockConfigs.conveyor, function( conveyor ) 
+		conveyor.conveyor = { direction = vec2:new( -1, 0 ) }
+	end),
+	[261+32*3+4] = {
+		baseType = 261+32*3,
+	},
+
+	[512] = {
+		name = 'Oven',
+		explanation = OVEN_EXPLANATION,
+		actorConfigName = 'oven',
+		on_version = 513,
+		recipes = {
+			{
+				inputs = { iron_ore = 2 },
+				output = { iron = 2 },
+				duration = 2,
+			},
+			{
+				inputs = { gold_ore = 2 },
+				output = { gold = 1 },
+				duration = 3,
+			},
+		},
+		tick = function( x, y, blockType, blockTypeIndex )
+			blockCheckRecipes( x, y, blockType, blockTypeIndex )
+		end,
+	},
+	[513] = {
+		name = 'Oven',
+		explanation = OVEN_EXPLANATION,
+		actorConfigName = 'oven',
+		off_version = 512,
+		tick = function( x, y, blockType, blockTypeIndex )
+			blockUpdateCooking( x, y, blockType, blockTypeIndex )
+		end,
+	},
+	[515] = blockConfigs.combiner_off,
+	[516] = blockConfigs.combiner_on,
+	[517] = blockConfigs.sensor_off,
+	[518] = blockConfigs.sensor_on,
+	[519] = blockConfigs.harvester,
+
+	-- [288] = blockConfigs.robot_base_off,
+	[290] = blockConfigs.robot_base_on,
+
+	[480] = blockConfigs.tree_base,
+	[481] = blockConfigs.source_iron_ore,
+	[482] = blockConfigs.source_gold_ore,
+	[483] = blockConfigs.source_copper,
+	[484] = blockConfigs.source_stone,
+	[485] = blockConfigs.rubber_tree_base,
+}
+
+function setBlockTypeRange( config, start, count )
+	for i = start, start + count - 1 do
+		blockTypes[ i ] = config
+	end
+end
+
+function blockTypeForIndex( blockTypeIndex )
+	return blockTypes[ blockTypeIndex ]
+end
+
+function baseBlockTypeIndex( blockTypeIndex )
+	local blockType = blockTypeForIndex( blockTypeIndex )
+	if blockType == nil then return blockTypeIndex end
+
+	if blockType.baseType and blockType.baseType ~= blockTypeIndex then
+		return baseBlockTypeIndex( blockType.baseType )
+	end
+	return blockTypeIndex
+end
+
+function withBaseBlockType( blockTypeIndex, callback )
+	local baseTypeIndex = baseBlockTypeIndex( blockTypeIndex )
+	local baseType = blockTypeForIndex( baseTypeIndex )
+	if baseType ~= nil then
+		return callback( baseType, baseTypeIndex )
+	end
+end
+
+function blockTypeAt( x, y )
+	local blockTypeIndex = mget( x, y )
+	return blockTypeForIndex( blockTypeIndex ), blockTypeIndex
+end
+
+function forEachBlock( callback )
+	for y = 0, WORLD_SIZE_TILES - 1 do
+		for x = 0, WORLD_SIZE_TILES - 1 do
+			local tileSpriteIndex = mget( x, y )
+			if tileSpriteIndex >= MIN_ACTIVE_BLOCK_INDEX then
+				local blockType = blockTypeForIndex( tileSpriteIndex )
+				if blockType ~= nil then
+					callback( x, y, blockType, tileSpriteIndex )
 				end
 			end
 		end
-	end	
+	end
 end
 
+function fixupBlocks()
+	setBlockTypeRange( blockConfigs.ground, 256, 5 )
+
+	blockConfigs.robot_base_off = robotBaseClass()
+	blockTypes[ 288 ] = blockConfigs.robot_base_off
+
+	
+	for _, animSet in pairs( blockAnimSets ) do
+		local animSetBase = animSet.frames[ 1 ]
+
+		for _, block in pairs( animSet.frames ) do
+			if blockTypes[ block ] == nil then
+				blockTypes[ block ] = {}
+			end
+			
+			if block ~= animSetBase then
+				blockTypes[ block ].baseType = animSetBase
+			end
+			blockTypes[ block ].animSet = animSet
+		end
+	end
+
+	forEachBlock( function( x, y, blockType, blockTypeIndex )
+		withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
+			if baseBlockType.onPlaced ~= nil then 
+				baseBlockType.onPlaced( x, y, blockType, blockTypeIndex ) 
+			end
+		end)
+	end )
+end
+
+
+function updateBlock( x, y, blockType, blockTypeIndex )
+	assert( blockType )
+
+	withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
+		local animSet = blockType.animSet
+		if animSet then
+			local changeSpeed = animSet.speed or 4
+			local frame = math.floor( ticks // changeSpeed )
+
+			local block = animSet.frames[ 1 + frame % #animSet.frames ]
+
+			mset( x, y, block )
+		end
+
+		if baseBlockType.tick then
+			baseBlockType.tick( x, y, baseBlockType, baseBlockTypeIndex )
+		end		
+	end)
+end
+
+function updateBlocks()
+	forEachBlock( function( x, y, blockType, blockTypeIndex )
+		updateBlock( x, y, blockType, blockTypeIndex )
+	end )
+end
+
+function speechSound()
+	sfx( 'speech' .. math.floor( randInt( 1, 4 )) )
+end
+
+function onRobotFound()
+	if not worldState.robotFound then
+		worldState.robotDialoguing = true
+		sfx( 'speech3' )
+	end
+end
+
+function updateGameLogic()
+	if not worldState.robotDialoguing then
+		if player.pos.x >= 19 * PIXELS_PER_TILE and player.pos.y >= 13 * PIXELS_PER_TILE and player.pos.y <= 17 * PIXELS_PER_TILE then
+			onRobotFound()
+		end
+	end
+end
+
+function updateActive()
+
+	updateGameLogic()
+
+	updateInput( player )
+
+	updateActors()
+	updateActorsOnBlocks()
+	updateBlocks()
+
+	ticks = ticks + 1
+end
+
+function pressToRestart()
+	if btnp( 4 ) or btnp( 5 ) then
+		startGame()
+	end
+end
+
+function updateGameWon()
+	pressToRestart()
+end
+
+function updateGameLost()
+	pressToRestart()
+end
+
+function updateDialogue()
+	if btnp( 4 ) or btnp( 5 ) then
+		worldState.dialogueStep = worldState.dialogueStep + 1
+
+		if worldState.dialogueStep > #dialogue then
+			worldState.robotDialoguing = false
+			worldState.robotFound = true
+		else
+			speechSound()
+		end
+	end
+end
+
+function update()
+
+	if worldState.robotDialoguing then
+		updateDialogue()
+	elseif worldState.gameWon then
+		updateGameWon()
+	elseif worldState.gameLost then
+		updateGameLost()
+	else
+		updateFuelGuage()
+		updateActive()
+	end
+
+	updateScreenParams()
+
+	realTicks = realTicks + 1
+end
+
+
+-- DRAW
 
 local viewLeft = 0
 local viewTop = 0
@@ -2039,78 +2535,47 @@ function viewBounds()
 	}
 end
 
-function actorUpdateBounds()
-	local bounds = viewBounds()
-	expandContractRect( bounds, actorUpdateMargin )
-	return bounds
+function worldBoundsToTerrainBounds( bounds )
+	local tileBounds = {
+		left = 		worldToTile( bounds.left ),
+		top = 		worldToTile( bounds.top ),
+		right = 	worldToTile( bounds.right ),
+		bottom = 	worldToTile( bounds.bottom ),
+	}
+	return tileBounds
 end
 
-function deleteActorBounds()
+function drawMap()
 	local bounds = viewBounds()
-	expandContractRect( bounds, actorDeleteMargin )
-	return bounds
+	local tiles = worldBoundsToTerrainBounds( bounds )
+	local wid = tiles.right - tiles.left + 1
+	local hgt = tiles.bottom - tiles.top + 1
+
+	map( tiles.left, tiles.top, tiles.left * PIXELS_PER_TILE, tiles.top * PIXELS_PER_TILE, wid, hgt )
 end
 
-function spawnActorBounds()
-	local bounds = deleteActorBounds()
-	expandContractRect( bounds, -actorSpawnInset )
-	return bounds
+function actorCountAdd( actor, amount )
+	amount = amount ~= nil and amount or 1
+
+	if actor.count == nil then actor.count = 1 end
+	actor.count = actor.count + amount
+
+	local maxCount = actor.config.maxCount or RESOURCE_MAX_COUNT_DEFAULT
+	if actor.count > maxCount then
+		actor.count = maxCount
+	end
+
+	if actor.count < 1 then 
+		deleteActor( actor )
+	end
+
+	-- count established.
 end
 
 function actorDrawBounds()
 	local bounds = viewBounds()
 	expandContractRect( bounds, actorDrawMargin )
 	return bounds
-end
-
-local lastPopulatingLocation = nil
-
-function spawnPopulatingActors( fill )
-	local bounds = spawnActorBounds()
-	local terrainBounds = worldBoundsToTerrainBounds( bounds )
-
-	local location = vec2:new( terrainBounds.left, terrainBounds.top )
-
-	if lastPopulatingLocation ~= nil and lastPopulatingLocation:equals( location ) then return end
-	
-	local delta = lastPopulatingLocation ~= nil and location - lastPopulatingLocation or vec2:new( 0, 0 )
-	lastPopulatingLocation = location
-
-	if fill then
-		for y = terrainBounds.top, terrainBounds.bottom do
-			for x = terrainBounds.left, terrainBounds.right do
-				populateForMapCell( x, y )
-			end
-		end
-	else
-		for x = terrainBounds.left, terrainBounds.right do
-			populateForMapCell( x, delta.y > 0 and terrainBounds.bottom or terrainBounds.top )
-		end
-
-		for y = terrainBounds.top, terrainBounds.bottom do
-			populateForMapCell( delta.x > 0 and terrainBounds.right or terrainBounds.left, y )
-		end
-	end
-end
-
-function updateActors()
-	deleteOutOfBoundsActors()
-
-	spawnPopulatingActors()
-
-	local bounds = actorUpdateBounds()
-
-	for _, actor in ipairs( actors ) do
-		if actor == player or rectOverlapsPoint( bounds, actor.pos ) then
-			updateActor( actor )
-		end
-	end
-
-	collideActors()
-
-	-- clamp the player to the world
-	player.pos.x = clamp( player.pos.x, 16, WORLD_SIZE_PIXELS - 16 )
-	player.pos.y = clamp( player.pos.y, 16, WORLD_SIZE_PIXELS - 16 )
 end
 
 function drawActors()
@@ -2132,15 +2597,13 @@ function drawActors()
 	-- count occluders
 	local numOccludingActors = 0
 	for _, actor in ipairs( drawnActors ) do
-		actor.occluding = actor.config.fadeForPlayer and actorOccludesPlayer( actor )
+		actor.occluding = actor.config.fadeForPlayer and not actor.held and actorOccludesPlayer( actor )
 		if actor.occluding then
 			numOccludingActors = numOccludingActors + 1
 		end
 	end
 
-	local targetOpacity = numOccludingActors > 0 and ( 0.5 / ( numOccludingActors ^ (1/2) )) or 1.0
-
-	-- trace( numOccludingActors .. ' ' .. targetOpacity )
+	local targetOpacity = numOccludingActors > 0 and ( 0.2 / ( numOccludingActors ^ (1/2) )) or 1.0
 
 	for _, actor in ipairs( drawnActors ) do
 		local actorOpacity = actor.occluding and targetOpacity or 1.0
@@ -2151,979 +2614,286 @@ function drawActors()
 
 end
 
--- CONVERSATION SYSTEM
+guage = {
+	flashBrightness = 1,
+}
 
-MAX_CONVERSATION_HEIGHT = 110
-conversationHeight = 0
-TEXT_SPEED = 0.6
+function updateFuelGuage()
+	guage.flashBrightness = lerp( guage.flashBrightness, 0.0, 0.1 )
 
-local currentConversation = nil
-local currentConversationMusic = nil
-local pauseInConversation = nil
-local conversationCallback = nil
-local messageIndex = 1
-local messageLineIndex = 1
-local messageCharIndex = 1
+	local guageFlashSpeed = ( robot.fuel <= MIN_FUEL_FOR_MAX_GUAGE_FLICKER ) and 10 or ( robot.fuel <= MAX_FUEL_FOR_NEEDINESS and 60 or 0 )
 
-function startConversation( conversation, pauseGame, onFinished, musicName, soundName )
-	currentConversation = conversation
-	
-	if pauseGame ~= nil and pauseGame == false then
-		pauseInConversation = false
-	else
-		pauseInConversation = true
-	end
-
-	currentConversationMusic = musicName
-	if currentConversationMusic ~= nil then
-		music( currentConversationMusic, 0.5 )
-	end
-
-	conversationTypeSound = soundName or 'talk_lady'
-
-	conversationCallback = onFinished
-	messageIndex = 1
-	messageLineIndex = 1
-	messageCharIndex = 1
-
-	if #conversation == 0 then
-		conversation = { '...' }
+	if guageFlashSpeed > 0 and ( ticks % guageFlashSpeed ) == 0 then
+		guage.flashBrightness = 1
+		sfx( 'warning' )
 	end
 end
 
-function endConversation()
-	currentConversation = nil
-	pauseInConversation = nil
-	conversationTypeSound = nil
+function drawHUDFuelGuage()
+	if not worldState.robotFound then return end
 
-	if currentConversationMusic ~= nil then
-		-- restore wild music
-		music( 'wilds', 0.25 )
+	local screen_mid = screen_wid() // 2
+	local fuelGuageMaxWid = screen_wid() * 0.65
+	local guageWid = fuelGuageMaxWid * clamp( proportion( robot.fuel, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY, ROBOT_MAX_FUEL ), 0, 1 )
+	local halfWid = guageWid // 2
+
+	local guageColor = colorLerp( BRIGHT_RED, WHITE, guage.flashBrightness )
+
+	rectfill( screen_mid - halfWid, screen_hgt() - 5, screen_mid + halfWid, screen_hgt() - 3, guageColor )
+end
+
+RECIPE_TEXT_COLOR = 0xFFE3E0F2
+RECIPE_TEXT_OFFSET_Y = 4
+
+function drawResourceIcon( resourceKey, x, y )
+	local config = actorConfigurations[ resourceKey ]
+	local sprite = config.animations.idle.frames[1]
+	if sprite == nil then return end
+
+	spr( sprite, x, y + 1, 1, 1, false, false, 0xFF000000 )
+	spr( sprite, x, y )
+
+	return 8
+end
+
+function drawIngredientList( ingredients, x, y )
+	local i = 1
+	for key, count in pairs( ingredients ) do
+		if i > 1 then
+			printShadowed( '+', x, y + RECIPE_TEXT_OFFSET_Y, RECIPE_TEXT_COLOR )
+			x = x + 8
+		end
+
+		x = x + drawResourceIcon( key, x, y ) + 4
+
+		if count > 1 then
+			drawCount( count, x, y )
+		end
+		x = x + 8
+
+		i = i + 1
 	end
-	currentConversationMusic = nil
 
-	if conversationCallback ~= nil then
-		conversationCallback()
-		conversationCallback = nil
-	end
+	return x
 end
 
-function conversationNextMessage()
-	messageIndex = messageIndex + 1
-	messageLineIndex = 1
-	messageCharIndex = 1
+function drawBlockRecipes( blockType )
 
-	if messageIndex > #currentConversation then
-		endConversation()
-	end
-end
+	local y = 26
+	for _, recipe in ipairs( blockType.recipes ) do
+		if recipe.output ~= nil then
+			local x = drawIngredientList( recipe.output, 10, y ) + 2
 
-function updateConversationInput()
-	local message = currentMessage()
+			printShadowed( '<=', x, y + RECIPE_TEXT_OFFSET_Y, RECIPE_TEXT_COLOR )
+			x = x + 14
 
-	if isMarketMessage( message ) then
-		updateMarketInput( message )
-		return
-	end
+			drawIngredientList( recipe.inputs, x, y )
 
-	if isMessageComplete() and ( btnp( 4 ) or btnp( 5 )) then
-		conversationNextMessage()
-	end
-end
-
-function currentMessage()
-	return currentConversation[ messageIndex ]
-end
-
-function currentLine()
-	return currentMessage()[ messageLineIndex ]
-end
-
-function isMessageComplete()
-	if messageIndex > #currentConversation then return true end
-
-	local message = currentMessage()
-
-	if messageLineIndex > #message then return true end
-
-	local currentLine = message[ messageLineIndex ]
-
-	return messageLineIndex == #message and math.floor( messageCharIndex ) >= #currentLine
-end
-
-function updateConversation()
-	if not isMessageComplete() then
-		local lastCharInt = math.floor( messageCharIndex )
-		messageCharIndex = messageCharIndex + TEXT_SPEED * ( (btn( 4 ) or btn( 5 )) and 4.0 or 1.0 )
-
-		if conversationTypeSound ~= nil and (lastCharInt % 3 == 0) and lastCharInt < math.floor( messageCharIndex ) then
-			sfx( conversationTypeSound, 0.5 )
-		end			
-
-		local line = currentLine()
-
-		if math.floor( messageCharIndex ) > #line then
-			messageLineIndex = messageLineIndex + 1
-			messageCharIndex = 1
+			y = y + 17
 		end
 	end
-
-	updateConversationInput()
 end
 
-function drawConversation()
-	camera( 0, -( screen_hgt() - conversationHeight ))
-	rectfill( 0, 0, screen_wid(), screen_hgt(), 0xFF202020 )
+function printShadowed( text, x, y, color, shadowColor )
+	print( text, x, y+1, shadowColor or 0xFF161C21 )
+	print( text, x, y, color )
+end
 
-	if currentConversation == nil then
-		return
-	end
+function drawHUDBlockInfo()
+	local screen_mid = screen_wid() // 2
 
-	local message = currentMessage()
+	local x = worldToTile( player.pos.x )
+	local y = worldToTile( player.pos.y )
 
-	if isMarketMessage( message ) then
-		drawMarket( message )
-		return
-	end
+	withBlockTypeAt( x, y, function( blockType, blockTypeIndex )
+		withBaseBlockType( blockTypeIndex, function( blockTypeBase, baseBlockTypeIndex )
+			local textX = 6
+			local textY = 6
+			local name = blockTypeBase.name
+			if name ~= nil then
+				name = name .. ( blockTypeBase.harvestSource ~= nil and ' - use Harvester' or '' )
+				printShadowed( name or '', textX, textY, BRIGHT_RED )
+				textY = textY + 10
+			end
 
-	-- Vertical and horizontal centering
-
-	local maxLines = 8
-	local maxWidth = ( screen_wid() - 8 ) / 8
-
-	local numLines = #message
-	local topLineOffset = (maxLines - numLines) * 8
-
-	print( '', 4, -4 + topLineOffset )
-
-	local talkFont = 0
-
-	function drawLine( text, line )
-		local lineLen = #line
-		local offsetX = 4 + 8 * ( maxWidth - lineLen ) / 2
-
-		print( text, offsetX, nil, nil, talkFont )
-	end
-
-	for index, line in ipairs( message ) do
-		if index <= messageLineIndex then
-			if index < messageLineIndex then
-				-- draw whole line
-				drawLine( line, line )
+			if type( blockTypeBase.explanation ) == 'table' then
+				for _, text in ipairs( blockTypeBase.explanation ) do					
+					printShadowed( text, textX, textY, 0xFFB0B8BF )
+					textY = textY + 10
+				end
 			else
-				drawLine( line:sub( 1, math.floor( messageCharIndex )), line )
+				print( blockTypeBase.explanation or '', textX, textY, 0xFFB0B8BF )
+				textY = textY + 10
 			end
-		end
-	end
-end
 
--- MARKET SYSTEM
-
-local currentMarketControlX = 0
-local currentPurchaseOrder = nil
-
-function startMarket( market )
-	assert( market ~= nil )
-
-	currentMarketControlX = 0
-	currentMarketControlY = 0
-	currentPurchaseOrder = { buy = {}, sell = {} }
-
-	for _, commodity in ipairs( market.marketProper.commodities ) do
-		currentPurchaseOrder.buy[  commodity.config ] = 0
-		currentPurchaseOrder.sell[ commodity.config ] = 0
-	end
-
-	startConversation({
-			market.greeting,
-			market.marketProper,
-			market.goodbye
-		},
-		nil,
-		nil,
-		'shopkeep' --music
-	)
-end
-
-function isMarketMessage( message )
-	return message.commodities ~= nil
-end
-
-function commodityCost( marketProper, commodity )
-	return 5 	-- TODO
-end
-
-function clampCommodity( commodityAmount )
-	return clamp( math.floor( commodityAmount ), 0, 9 )
-end
-
-function commodityAvailability( marketProper, typeOfTrade, commodity )
-	if typeOfTrade == 'buy' then
-		return commodity.available
-	else
-		if player.inventory[ commodity.config ] == nil then
-			player.inventory[ commodity.config ] = 0
-		end
-		return player.inventory[ commodity.config ]
-	end
-end
-
-function contemplatedCommodityTrade( marketProper )
-	if currentMarketControlY == #marketProper.commodities then
-		return nil
-	end
-
-	local commodity = marketProper.commodities[ currentMarketControlY + 1 ]
-
-	return commodity, currentMarketControlX == 0 and 'buy' or 'sell'
-end
-
-function canAffordAdditionalCost( marketProper, additionalCost )
-	local currentGainLoss = purchaseOrderNetGainLoss( marketProper, currentPurchaseOrder )
-	local currentProposedPlayerBalance = player.coins + currentGainLoss
-	
-	return additionalCost <= currentProposedPlayerBalance
-end
-
-function drawMarket( marketProper )
-	local commodities = marketProper.commodities
-
-	local buyColumn = 80
-	local sellColumn = buyColumn + ( screen_wid() - buyColumn ) / 2
-
-	print( 'BUY', buyColumn, 4, 0xFF00FF00, 1 )
-	print( 'SELL', sellColumn, 4, 0xFFFFFF00, 1 )
-
-	print( 'have', buyColumn + 44, 4, 0xFF808080, 2 )
-	print( 'have', sellColumn + 44, 4, 0xFF808080, 2 )
-
-	print( 'z', buyColumn + 30, 12, 0xFF808080, 2 )
-	print( 'z', sellColumn + 30, 12, 0xFF808080, 2 )
-	print( 'x', buyColumn + 42, 12, 0xFF808080, 2 )
-	print( 'x', sellColumn + 42, 12, 0xFF808080, 2 )
-
-	local currentMarketControl = ( currentMarketControlY == #commodities and 0 or currentMarketControlX ) + currentMarketControlY * 2
-
-	local iControl = 0
-	for i, commodity in ipairs( commodities ) do
-		local y = 3 + i * 17
-
-		spr( commodity.icon, 6, y + commodity.iconOffsetY )
-		print( commodity.name, 24, y )
-		print( '$' .. commodity.playerBuysFor, buyColumn, y )
-		print( '$' .. commodity.playerSellsFor, sellColumn, y )
-
-		local availableForPlayerToBuy = commodityAvailability( marketProper, 'buy', commodity )
-		local proposedBuy = currentPurchaseOrder.buy[ commodity.config ]
-
-		local isCurrentControl = iControl == currentMarketControl
-
-		local canLess = proposedBuy > 0
-
-		local canAffordOneMore = canAffordAdditionalCost( marketProper, commodity.playerBuysFor )
-		local canMore = availableForPlayerToBuy - proposedBuy > 0 and canAffordOneMore
-
-		print( '<', buyColumn + 6 * 5, y, isCurrentControl and ( canLess and 0xFFFFFFFF or 0xFF808080 ) or 0xFF808080 )
-		print( proposedBuy, buyColumn + 6 * 6, y, isCurrentControl and 0xFFFFFFFF or 0xFF808080 )
-		print( '>', buyColumn + 6 * 7, y, isCurrentControl and ( canMore and 0xFFFFFFFF or 0xFF808080 ) or 0xFF808080 )
-
-		print( '(', buyColumn + 6 * 9, y, 0xFF808080 )
-		print( availableForPlayerToBuy, buyColumn + 6 * 9 + 5, y, 0xFF808080 )
-		print( ')', buyColumn + 6 * 9 + 10, y, 0xFF808080 )
-		
-		iControl = iControl + 1
-
-		local availableForPlayerToSell = commodityAvailability( marketProper, 'sell', commodity )
-		local proposedSell = currentPurchaseOrder.sell[ commodity.config ]
-
-		isCurrentControl = iControl == currentMarketControl
-
-		canLess = proposedSell > 0
-		canMore = availableForPlayerToSell - proposedSell > 0
-
-		print( '<', sellColumn + 6 * 5, y, isCurrentControl and ( canLess and 0xFFFFFFFF or 0xFF808080 ) or 0xFF808080 )
-		print( proposedSell, sellColumn + 6 * 6, y, isCurrentControl and 0xFFFFFFFF or 0xFF808080 )
-		print( '>', sellColumn + 6 * 7, y, isCurrentControl and ( canMore and 0xFFFFFFFF or 0xFF808080 ) or 0xFF808080 )
-
-		print( '(', sellColumn + 6 * 9, y, 0xFF808080 )
-		print( availableForPlayerToSell, sellColumn + 6 * 9 + 5, y, 0xFF808080 )
-		print( ')', sellColumn + 6 * 9 + 10, y, 0xFF808080 )
-
-		iControl = iControl + 1
-	end
-
-	-- print( 'Z - less  X - more', 6, MAX_CONVERSATION_HEIGHT - 10, 0xFF808080, 2 )
-
-	local controlColor = iControl == currentMarketControl and 0xFFFFFFFF or 0xFF808080
-	print( 'DONE', 240 - 6 * 6, MAX_CONVERSATION_HEIGHT - 10, controlColor )
-end
-
-function purchaseOrderNetGainLoss( marketProper, order )
-
-	local totalCoinsGained = 0
-
-	for _, commodity in ipairs( marketProper.commodities ) do
-		local buyAmount = order.buy[ commodity.config ]
-		local sellAmount = order.sell[ commodity.config ]
-
-		local buyCost = buyAmount * commodity.playerBuysFor
-		local sellCost = sellAmount * commodity.playerSellsFor
-	
-		totalCoinsGained = totalCoinsGained - buyCost + sellCost
-	end
-
-	return totalCoinsGained
-end
-
-function enactTrades( marketProper )
-
-	local totalCoinsGained = 0
-
-	for _, commodity in ipairs( marketProper.commodities ) do
-		-- TODO surely not both?!
-		local buyAmount = currentPurchaseOrder.buy[ commodity.config ]
-		local sellAmount = currentPurchaseOrder.sell[ commodity.config ]
-
-		local buyCost = buyAmount * commodity.playerBuysFor
-		local sellCost = sellAmount * commodity.playerSellsFor
-	
-		totalCoinsGained = totalCoinsGained - buyCost + sellCost
-
-		if player.inventory[ commodity.config ] == nil then
-			player.inventory[ commodity.config ] = 0
-		end
-		player.inventory[ commodity.config ] = 
-			clampCommodity( player.inventory[ commodity.config ] - sellAmount + buyAmount )
-
-		commodity.available = clampCommodity( commodity.available + sellAmount - buyAmount )
-	end
-
-	if totalCoinsGained ~= 0 then
-		player.coins = player.coins + totalCoinsGained
-		coinFlash = 1.0
-		sfx( 'purchase_00' )
-	end
-end
-
-local lastAdjustmentTIme = now()
-MARKET_ADJUSTMENT_INTERVAL = 10
-
-function forEachMarket( callback )
-	for _, actor in ipairs( actors ) do
-		if actor.config.name == 'market' then
-			callback( actor )
-		end
-	end
-end
-
-function maybeAdjustMarkets()
-	if now() < lastAdjustmentTIme + MARKET_ADJUSTMENT_INTERVAL then return end
-
-	lastAdjustmentTIme = now()
-
-	-- trace( 'adjusting markets' )
-
-	forEachMarket( function( marketActor )
-		local commodities = marketActor.market.marketProper.commodities
-		for _, commodity in ipairs( commodities ) do
-			local price = commodity.playerSellsFor
-			local maxPrice = 20
-			local minChance = 1
-			local maxChance = 10
-
-			local cheapness = 1.0 - clamp( price / maxPrice, 0.0, 1.0 )
-			local chance = lerp( minChance, maxChance, cheapness )
-
-			if pctChance( chance ) then
-				commodity.available = clampCommodity( commodity.available + 1 )
+			if blockTypeBase.drawRecipes ~= false and blockTypeBase.recipes ~= nil then
+				drawBlockRecipes( blockTypeBase )
 			end
-		end
+
+			if blockTypeBase.draw ~= nil then
+				blockTypeBase.draw()
+			end
+		end)
 	end)
 end
 
-function updateMarketInput( marketProper )
-	if btnp( 0 ) then
-		sfx( 'alert_03' )
-		if currentMarketControlY == #marketProper.commodities then
-			currentMarketControlY = currentMarketControlY - 1
-			currentMarketControlX = 0
-		else
-			currentMarketControlX = currentMarketControlX - 1
-		end
-	end
+function printRightAligned( text, x, y, color, printFn )
+	( printFn or print )( text, x - #text * 8, y, color )
+end
 
-	if btnp( 1 ) then
-		sfx( 'alert_03' )
-		if currentMarketControlY == #marketProper.commodities then
-			currentMarketControlY = currentMarketControlY - 1
-			currentMarketControlX = 1
-		else
-			currentMarketControlX = currentMarketControlX + 1
-		end
-	end
+function printCentered( text, x, y, color, printFn )
+	( printFn or print )( text, x - #text * 4, y, color )
+end
 
-	if currentMarketControlX < 0 then
-		currentMarketControlX = 1
-		currentMarketControlY = currentMarketControlY - 1
-	end
-
-	if currentMarketControlX >= 2 then
-		currentMarketControlX = 0
-		currentMarketControlY = currentMarketControlY + 1
-	end
-
-	if btnp( 2 ) then
-		sfx( 'alert_03' )
-		currentMarketControlY = currentMarketControlY - 1
-	end
-
-	if btnp( 3 ) then
-		sfx( 'alert_03' )
-		currentMarketControlY = currentMarketControlY + 1
-	end
-
-	if currentMarketControlY < 0 then
-		currentMarketControlY = #marketProper.commodities
-	end
-
-	if currentMarketControlY > #marketProper.commodities then
-		currentMarketControlY = 0
-	end
-
-	if currentMarketControlY == #marketProper.commodities then
-		if btnp( 4 ) or btnp( 5 ) then
-			enactTrades( marketProper )
-			conversationNextMessage()
-		end
-	else
-		local commodity, typeOfTrade = contemplatedCommodityTrade( marketProper )
-		local commodityName = commodity.config
-		if btnp( 4 ) then	-- less
-			sfx( 'item_down' )
-			currentPurchaseOrder[ typeOfTrade ][ commodityName ] = math.max( 0, currentPurchaseOrder[ typeOfTrade ][ commodityName ] - 1 )
-		end
-
-		if btnp( 5 ) then	-- more
-			sfx( 'item_up' )
-			if typeOfTrade == 'buy' then
-				local proposedBuy = currentPurchaseOrder.buy[ commodity.config ]
-				local canAffordOneMore = canAffordAdditionalCost( marketProper, commodity.playerBuysFor )
-				local availableForPlayerToBuy = commodityAvailability( marketProper, typeOfTrade, commodity )
-				local canMore = availableForPlayerToBuy - proposedBuy > 0 and canAffordOneMore
-
-				if canMore then
-					currentPurchaseOrder[ typeOfTrade ][ commodityName ] = math.min( availableForPlayerToBuy, currentPurchaseOrder[ typeOfTrade ][ commodityName ] + 1 )
-				else
-					if not canAffordOneMore then
-						coinFlash = 1
-					end
-				end
-			else
-				local availableForPlayerToSell = commodityAvailability( marketProper, 'sell', commodity )
-				currentPurchaseOrder[ typeOfTrade ][ commodityName ] = math.min( availableForPlayerToSell, currentPurchaseOrder[ typeOfTrade ][ commodityName ] + 1 )
-			end
-		end
+function drawRobotNeed( needRecipe )
+	if worldState.robotFound then
+		printRightAligned( ROBOT_NAME, screen_wid() - 10, 6, WHITE, printShadowed )
+		printRightAligned( ' needs', screen_wid() - 10, 14, WHITE, printShadowed )
+		drawIngredientList( needRecipe.inputs, screen_wid() - 16 - 10, 22 )
 	end
 end
 
--- TILES
+function drawHUDQuest()
+	local robotRecipes = blockConfigs.robot_base_off.recipes
+	assert( robotRecipes ~= nil )
 
--- Impassable tiles
-fset    ( spriteIndex( 27, 27 ), 1, 1 )		-- forest
-fset    ( spriteIndex( 12, 21 ), 1, 1 )		-- water
+	local sequence = robot.recipeSequence or 1
+	if sequence > #robotRecipes then return end
 
--- MAINS
+	local currentNeed = robotRecipes[ sequence ]
+	assert( currentNeed ~= nil )
 
-function updateViewTransform()
-	local viewOffset = vec2:new( screen_wid() / 2, screen_hgt() / 2 )
-
-	viewOffset.y = ( screen_hgt() - conversationHeight ) / 2
-
-	local viewPoint = ( player.pos - vec2:new( 0, 10 ) ) - viewOffset
-
-	setWorldView( viewPoint.x, viewPoint.y )
+	drawRobotNeed( currentNeed )
 end
 
-function roundSellPrice( price )
-	return math.floor( round( price, 1.0 ))
-end
-
-function roundBuyPrice( price )
-	local roundTerm = price >= 10 and 5 or 1
-	return math.floor( round( price, roundTerm ))
-end
-
-function createMarket( x, y, market )
-	-- Set sale prices and fixup things
-
-	local buyRate = market.marketProper.buyRate
-	for _, commodity in ipairs( market.marketProper.commodities ) do
-
-		commodity.playerBuysFor = commodity.playerSellsFor * buyRate
-
-		commodity.playerSellsFor = math.max( 0, roundSellPrice( commodity.playerSellsFor, 1 ))
-		commodity.playerBuysFor  = roundBuyPrice( commodity.playerBuysFor )
-
-		commodity.playerBuysFor = math.max( 0, math.max( commodity.playerBuysFor, commodity.playerSellsFor + 1 ))
-
-		commodity.available = clampCommodity( math.floor( commodity.available ~= nil and commodity.available or 0 ))
-
-		local config = actorConfigurations[ commodity.config ]
-		commodity.name = config.humanReadableName
-		commodity.icon = config.animations.idle.frames[1]
-		commodity.iconOffsetY = config.iconOffsetY or 0
+function drawInstructions()
+	if not worldState.moved then
+		printCentered( 'ARROW KEYS TO MOVE.', screen_wid() // 2, screen_hgt() - (16+20), BRIGHT_RED, printShadowed )
 	end
 
-	table.sort( market.marketProper.commodities, function( a, b )
-		return a.playerBuysFor < b.playerBuysFor
-	end )
-
-	local marketActor = createActor( 'market', x, y )
-	marketActor.market = market
-
-	createActor( 'shopkeeper', x, y+1 )
-
-	return marketActor
-end
-
-local centralMarket = vec2:new( 700, 1100 )
-
-function standardGreeting( marketName )
-	return {
-	'Welcome to',
-	(marketName or "my market") .. '!',
-	'',
-	"Do you have anything you'd",
-	"like to BUY or SELL?"
-	}
-end
-
-local standardGoodbye = {
-	'Thanks for stopping in!',
-	'',
-	'(Press X)'
-}
-
-function commodityForConfig( commodities, configName )
-	for _, commodity in ipairs( commodities ) do
-		if commodity.config == configName then
-			return commodity
-		end
-	end
-	return nil
-end
-
-function createRandomizedMarket( tileX, tileY, premiumName, discountName, marketName )
-
-	local x = PIXELS_PER_TILE * tileX
-	local y = PIXELS_PER_TILE * tileY
-
-	local dist = centralMarket:dist( vec2:new( x, y ))
-
-	local commodities = {
-		{ 
-			config = 'meat', 		
-			available = clampCommodity( math.random( 0, 5 )), 
-			playerSellsFor = math.random( 2, 4 ),
-		},
-		{ 
-			config = 'slimeDrop', 
-			available = clampCommodity( math.random( 0, 2 )),
-			playerSellsFor = math.random( 1, 5 ),
-		},
-		{ 
-			config = 'wood', 		
-			available = clampCommodity( math.random( 0, 5 )),
-			playerSellsFor = math.random( 2, 4 ),
-		},
-		{ 
-			config = 'mushroom_red', 
-			available = clampCommodity( math.random( 0, 6 )),
-			playerSellsFor = math.random( 3, 8 ),
-		},
-		{ 
-			config = 'crystal', 	
-			available = clampCommodity( math.random( 0, 2 )),
-			playerSellsFor = math.random( 10, 15 ),
-		},
-	}
-
-	if premiumName ~= nil then
-		local commodity = commodityForConfig( commodities, premiumName )
-		commodity.playerSellsFor = math.max( 0, roundSellPrice( commodity.playerSellsFor * randInRange( 1.5, 2.0 )))
-		commodity.available = clampCommodity( math.floor( math.random( 0, 2 )))
-	end
-
-	if discountName ~= nil then
-		local commodity = commodityForConfig( commodities, discountName )
-		commodity.playerSellsFor = math.max( 0, roundSellPrice( commodity.playerSellsFor * randInRange( 0.25, 0.5 )))
-		commodity.available = clampCommodity((( 1 + commodity.available ) * randInRange( 1.5, 2 ) ))
-	end
-
-	if premiumName == nil and discountName == nil then
-		-- randomized premium/discount
-		for i, commodity in ipairs( commodities ) do
-			if pctChance( 25 ) then
-				-- premium
-				commodity.playerSellsFor = math.max( 0, roundSellPrice( commodity.playerSellsFor * randInRange( 1.25, 1.5 )))
-				commodity.available = clampCommodity( math.floor( math.random( 0, 2 )))
-			elseif pctChance( 20 ) then
-				-- discount
-				commodity.playerSellsFor = math.max( 0, roundSellPrice( commodity.playerSellsFor * randInRange( 0.5, 0.9 )))
-				commodity.available = clampCommodity( math.floor(( 1 + commodity.available ) * randInRange( 1.5, 2 ) ))
-			end
-		end
-	end
-
-	local marketInfo = {
-		greeting = standardGreeting( marketName ),
-		marketProper = {
-			buyRate = randInRange( 1.25, 2.5 ),
-			commodities = commodities
-		},
-		goodbye = standardGoodbye,
-	}
-	return createMarket( x, y, marketInfo )
-end
-
-function createTown( tileX, tileY, radius, premiumName, discountName, marketName )
-
-	local townCenter = vec2:new( tileX, tileY )
-	radius = radius or 6
-
-	local town = {
-		pos = townCenter * PIXELS_PER_TILE,
-		radius = radius * PIXELS_PER_TILE,
-		buildings = {}
-	}
-
-	createRandomizedMarket( townCenter.x, townCenter.y, premiumName, discountName, marketName )
-
-	if pctChance( 50 ) then
-		local building = createActor( 'outhouse', 0, 0 )
-		table.insert( town.buildings, building )
-	end
-
-	if pctChance( 75 ) then
-		local building = createActor( 'house1', 0, 0 )
-		table.insert( town.buildings, building )
-	end
-	if pctChance( 75 ) then
-		local building = createActor( 'house2', 0, 0 )
-		table.insert( town.buildings, building )
-	end
-
-	local numBuildings = #town.buildings
-
-	local buildingAngle = randInRange( 0, math.pi )
-	local buildingAngleStep = math.pi * 2 / numBuildings
-
-	function getBuildingLocation( angle )
-		local buildingDistance = randInRange( radius * 0.75, radius )
-
-		local loc = vec2:new( buildingDistance, 0 )
-		loc:rotate( angle )
-
-		return townCenter + loc
-	end
-
-	for i, building in ipairs( town.buildings ) do
-		local angle = buildingAngle + ( i - 1 ) * buildingAngleStep
-		local loc = getBuildingLocation( angle )
-		building.pos = loc * PIXELS_PER_TILE
-	end
-
-	table.insert( towns, town )
-end
-
-towns = {}
-
-TOWN_BORDER = 128
-
-function isInTown( pos )
-	for _, town in ipairs( towns ) do
-		local dist = pos:dist( town.pos )
-		if dist <= town.radius + TOWN_BORDER then
-			return true
-		end
-	end
-	return false
-end
-
-local blockageSpriteIndex = spriteIndex( 15, 23 )
-
-function setSwordBlockTilesBlocking( block )
-	fset( blockageSpriteIndex, 1, block and 1 or 0 )
-end
-
-function createHomeTown( tileX, tileY, radius, premiumName, discountName, marketName )
-
-	local townCenter = vec2:new( tileX, tileY )
-	radius = radius or 8
-
-	local town = {
-		pos = townCenter * PIXELS_PER_TILE,
-		radius = radius * PIXELS_PER_TILE,
-		buildings = {}
-	}
-
-	homeTown = town
-
-
-	-- make jail
-	jail = createActor( 'jail', town.pos.x + 80, town.pos.y + 48 )
-	table.insert( town.buildings, jail )
-
-	-- fixup jail character position
-	local pos = jail.pos + vec2:new( -28, 1 )
-	createActor( 'husband_jail', pos.x, pos.y )
-
-	-- make market
-	createRandomizedMarket( townCenter.x + 0, townCenter.y - 5, premiumName, discountName, marketName )
-
-	-- make home
-	local housePos = town.pos + vec2:new( -96, 32 )
-	createActor( 'house1', housePos.x, housePos.y )
-
-	-- family
-	createActor( 'child', housePos.x + 48, housePos.y - 10 )
-	createActor( 'twins', housePos.x - 16, housePos.y + 16 )
-
-	-- make sword
-	createActor( 'sword', 224, 48 )
-
-	local blockageTileX = 24
-	local blockageTileY = 21
-
-	createActor( 'sword_blockage', ( blockageTileX + 0.5 ) * PIXELS_PER_TILE, blockageTileY * PIXELS_PER_TILE )
-	for i = 1, 4 do
-		mset( blockageTileX, blockageTileY - i, blockageSpriteIndex )
-	end
-
-	setSwordBlockTilesBlocking( true )
-
-	
-	table.insert( towns, town )
-end	
-
-function startGame()
-	restartGameTime = nil
-	color_multiplied_r = 1
-	color_multiplied_g = 1
-	color_multiplied_b = 1
-	color_multiplied_r_smoothed = 0
-	color_multiplied_g_smoothed = 0
-	color_multiplied_b_smoothed = 0
-
-
-	actors = {}
-	towns = {}
-
-	music( 'wilds', 0.25 )
-
-	-- createActor( 'rat', 160, 160 )
-
-	-- create towns
-
-	createHomeTown( 13, 22, nil, 'crystal', 'mushroom_red', "The Mushy Gemstone" ) -- North West
-	createTown( 110, 22, 8, 'mushroom_red', 'wood', "Shrooms 4 Wood" )       -- North East
-	createTown( 76, 49, 9, 'wood', 'slimeDrop', "Woody's Slime Hut" )           -- Central
-	createTown( 23, 91, 12, 'slimeDrop', 'meat', '"Slimes Beat Meat"' )          -- South West
-	createTown( 97, 89, 10, 'meat', 'crystal', "Gems 4 Cheap" )            -- South East
-
-	lastPopulatingLocation = nil
-
-	local priorCoins = player ~= nil and player.coins or 0
-
-	player = createActor( 'player', 8 * PIXELS_PER_TILE, 44 * PIXELS_PER_TILE )
-	player.coins = math.floor( priorCoins // 2 )
-
-
-	-- mark all current actors as permanent
-	for _, actor in ipairs( actors ) do
-		actor.surviveOutOfBounds = true
-	end
-
-	updateViewTransform()
-
-	-- initial spawn
-	spawnPopulatingActors( true )
-
-	-- Title screen conversation
-	startConversation( {
-		{
-			"Welcome to BONNIE.",
-			"",
-			"Use the arrow keys to move.",
-			"Z to strike.",
-			"",
-			"Press Z or X to begin."
-		},
-	})
-end
-
-function actorControlThrust( actor, thrust )
-	actor.vel = actor.vel + thrust
-
-	if thrust:lengthSquared() > 0 then
-		actor.heading = thrust:normal()
+	if not worldState.pickedUp then
+		printCentered( 'Z and X TO PICK UP', screen_wid() // 2, screen_hgt() - (16+10), WHITE, printShadowed )
+		printCentered( 'AND PLACE THINGS.', screen_wid() // 2, screen_hgt() - (16), WHITE, printShadowed )
+		
 	end
 end
-
-function updateTouch( actor )
-	local x = touchupx()
-	local y = touchupy()
-
-	if x < 0 or y < 0 then return end
-
-	-- Convert touch to world space
-	x = x + viewLeft
-	y = y + viewTop
-
-	local radius = actorCollisionRadius( actor )
-
-	-- local foundDest, destX, destY = navdest( x, y, radius, actor.pos.x, actor.pos.y )
-	local navResult = navdest( x, y, radius, actor.pos.x, actor.pos.y )
-	local foundDest = navResult[1]
-	local destX = navResult[2]
-	local destY = navResult[3]
-
-	trace( 'dest: ' .. (foundDest and 'true' or 'false') .. ' ' .. destX .. ' ' .. destY )
-
-	if not foundDest then return end
-
-	local path = nav( actor.pos.x, actor.pos.y, destX, destY, radius, true )
-
-	for _, bread in ipairs( path ) do
-		trace( 'bread: ' .. bread[1] .. ',' .. bread[2] )
-		debugCircle( { x = bread[1], y = bread[2] }, 10 )
-	end
-end
-
-function updateInput( actor )
-
-	updateTouch( actor )
-
-	local thrust = vec2:new()
-
-	if btn( 0 ) then
-		thrust.x = thrust.x - 1
-	end
-
-	if btn( 1 ) then
-		thrust.x = thrust.x + 1
-	end
-
-	if btn( 2 ) then 
-		thrust.y = thrust.y - 1
-	end
-
-	if btn( 3 ) then
-		thrust.y = thrust.y + 1
-	end
-
-	if not actor.attacking and btnp( 4 ) then
-		actorAttack( actor )
-	end
-
-	thrust = thrust:normal() * actor.config.maxThrust
-
-	actorControlThrust( actor, thrust )
-
-	if ( leapNextAvailableTime == nil or now() > leapNextAvailableTime ) and ( btnp( 5 ) and thrust:lengthSquared() > 0 ) then
-		actor.knockback = thrust * 2
-		actor.vel:set( 0, 0 )
-		createActor( 'deathCloud', actor.pos.x, actor.pos.y )
-
-		leapNextAvailableTime = now() + 0.5
-		-- sfx( TODO )
-		-- TODO
-	end
-end
-
-function drawMap()
-	local bounds = viewBounds()
-	local tiles = worldBoundsToTerrainBounds( bounds )
-	local wid = tiles.right - tiles.left + 1
-	local hgt = tiles.bottom - tiles.top + 1
-
-	map( tiles.left, tiles.top, tiles.left * PIXELS_PER_TILE, tiles.top * PIXELS_PER_TILE, wid, hgt )
-end
-
-function update()
-
-	if restartGameTime ~= nil and restartGameTime < realNow() then
-		startGame()
-		return
-	end
-
-	updateScreenParams()
-
-	if restartGameTime == nil and ( currentConversation == nil or pauseInConversation == false ) then 
-		updateActive()
-	end
-	
-	if currentConversation ~= nil then
-		updateConversation()
-	end
-
-	local needConversationMarquee = currentConversation ~= nil
-	conversationHeight = lerp( conversationHeight, needConversationMarquee and MAX_CONVERSATION_HEIGHT or 0, 0.1 )
-
-	realTicks = realTicks + 1
-end
-
-local coinSprite = spriteIndex( 27, 0 )
 
 function drawHUD()
-	camera(  0, 0 )
+	camera( 0, 0 )
 
-	-- player.inventory[ "mushroom_red" ] = 2
-	-- player.inventory[ "crystal" ] = 3
+	drawInstructions()
 
-	-- inventory
-	local j = 0
-	local invY = 21
-	local size = 2
-	for key, amount in pairs( player.inventory ) do
-		local config = actorConfigurations[ key ]
-		if config.pickup.invColor ~= nil then
-			for i = 1, amount do
-				local x = 4 + ( j % 10 ) * 4
-				local y = invY + ( j // 10 ) * 4
-				rectfill( x, y, x + size, y + size, config.pickup.invColor )
-				j = j + 1
-			end
+	drawHUDFuelGuage()
+
+	drawHUDQuest()
+
+	drawHUDBlockInfo()
+end
+
+function drawPlayAgain( x )
+	printCentered( 'PLAY AGAIN!', x, 90, WHITE, printShadowed )
+	printCentered( '[X]', x, 100, WHITE, printShadowed )
+end
+
+function drawGameWon()
+	camera( 0, 0 )
+	local midX = screen_wid() / 2
+	printCentered( 'YOU WON!', midX, 24, BRIGHT_RED, printShadowed )
+	printCentered( 'You Kept ' .. ROBOT_NAME .. ' Alive', midX, 40, WHITE, printShadowed )
+	printCentered( 'and helped him get fixed!', midX, 50, WHITE, printShadowed )
+
+	drawPlayAgain( midX )
+end
+
+function drawGameLost()
+	camera( 0, 0 )
+	local midX = screen_wid() / 2
+	printCentered( 'GAME OVER', midX, 24, BRIGHT_RED, printShadowed )
+	printCentered( 'You failed', midX, 40, WHITE, printShadowed )
+	printCentered( 'to Keep ' .. ROBOT_NAME .. ' Alive.', midX, 50, WHITE, printShadowed )
+
+	drawPlayAgain( midX )
+end
+
+dialogue = {
+	{ "HELLO AGAIN, OLD FRIEND!", 
+	  "Yes, it's me: " .. ROBOT_NAME .. "!" },
+	{ "It's been",
+	  "SUCH a LONG time!" },
+	{ "As you may have noticed,", 
+	  "I've seen BETTER DAYS." },
+	{ "I'd be much OBLIGED", 
+	  "if you would HELP me." },
+	{ "I need WOOD to stay alive,", 
+	  "and some other ITEMS", 
+	  "to help FIX me." },
+	{ "Would you FIND or MAKE",
+	  "these items", 
+	  "and BRING them to me?" },
+	{ "You may need to create", 
+	  "almost a FACTORY",
+	  "to make it all." },
+	{ "And DON'T FORGET:" },
+	{ "I'll need WOOD",
+	  "from time to time",
+	  "to KEEP ALIVE!" },
+	{ "I can't THANK YOU enough!" },
+}
+
+function drawDialogue()
+	camera( 0, 0 )
+
+	worldState.dialogueStep = worldState.dialogueStep or 1
+
+	local midX = screen_wid() / 2
+
+	local speech = dialogue[ worldState.dialogueStep ]
+
+	local y = 24
+	for i, text in ipairs( speech ) do
+		printCentered( text, midX, y, (worldState.dialogueStep == 1 and i == 1 ) and BRIGHT_RED or WHITE, printShadowed )
+		y = y + 12
+	end
+
+	printCentered( '[X] or [Z] to continue', midX, 100, BRIGHT_RED, printShadowed )
+end
+
+TITLE_FADE_DURATION_SECS = 3
+
+function drawTitle()
+
+	if worldState.robotDialoguing or worldState.robotFound then return end
+
+	if( worldState.pickedUp or worldState.moved ) and worldState.titleFadeStart == nil then
+		worldState.titleFadeStart = ticks
+	end
+
+	local opacity = 1
+
+	if worldState.titleFadeStart ~= nil then
+		local titleShownDuration = ( ticks - worldState.titleFadeStart ) / 60
+
+		if titleShownDuration > TITLE_FADE_DURATION_SECS then
+			return
 		end
+
+		opacity = ( 1 - clamp( titleShownDuration / TITLE_FADE_DURATION_SECS, 0, 1 )) ^ (1/2)
 	end
 
-	coinFlash = lerp( coinFlash, 0, 0.1 )
-	local coinAdditive = floatTermToColor( coinFlash )
+	local midX = screen_wid()/2
 
-	spr( coinSprite, 4, 4, 1, 1, false, false, 0xFFFFFFFF, coinAdditive )
-	print( math.floor( player.coins ), 17, 5, ( 0xffffff00 | coinAdditive ), 1, 2 )
+	-- fillp( bitPatternForAlpha( opacity * 0.1 ))
+	-- spr( 19, midX - 3*16, 20, 6, 2, false, false, 0xFF000000 )
 
+	fillp( bitPatternForAlpha( opacity ))
+	spr( 19, midX - 3*16, 4, 6, 2 )
+	printCentered( 'KEEP. HIM. ALIVE.', midX, 36, WHITE, printShadowed )
 
-	local heartSprite = spriteIndex( 27, 1 )
-	local spacing = 16
-
-	local left = screen_wid() - player.config.maxHealth * spacing - 4
-	local top = 4
-
-	healthFlash = lerp( healthFlash, 0, 0.1 )
-
-	for i = 1, player.config.maxHealth do
-		local dimming = i > player.health and 0.5 or 0
-		local additiveFloat = math.max( healthFlash, dimming )
-
-		local additive = floatTermToColor( additiveFloat )
-
-		spr( heartSprite, left + ( i - 1 ) * spacing, top, 1, 1, false, false, 0xFFFFFFFF, additive )
-	end
+	fillp(0)
 end
 
 function draw()
-	cls( 0xff000000 )
+	-- cls( 0xff000040 )
 
 	updateViewTransform()
 
@@ -3132,32 +2902,25 @@ function draw()
 
 	drawActors()
 
-	drawDebugCircles()
+	if worldState.robotDialoguing then
+		drawDialogue()
+	elseif worldState.gameWon then
+		drawGameWon()
+	elseif worldState.gameLost then
+		drawGameLost()
+	else
+		drawHUD()
+	end
 
-	drawHUD()
+	drawTitle()
 
-	drawConversation()
-	
 	camera( 0, 0 )
 	drawDebug()
 end
 
-function updateDeadMode()
-end
+saveInitialMap()
 
-function updateActive()
-	if player.health <= 0 then
-		updateDeadMode()
-	else
-		updateInput( player )
-	end
-
-	updateActors()
-
-	maybeAdjustMarkets()
-
-	ticks = ticks + 1
-end
-
+worldState = {}
 
 startGame()
+

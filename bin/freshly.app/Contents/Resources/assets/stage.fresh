@@ -5,6 +5,7 @@ object AppStage theStage {
 	stageDimensions "240,136"
     consoleHost DisplayObjectContainer'screenEffects_inner'
 	valueControls ValueControls'valueControls'
+	tvOverlay Sprite'screenEffects_overlay'
 
 	children [
 		object ScreenEffects screenEffects {
@@ -70,13 +71,27 @@ object AppStage theStage {
 						} EOF
 					}
 				}
+				
+				object Sprite $^_overlay {
+					texture Texture'tv_overlay'
+					blendMode Multiply
+					scale 0.625, -0.46875
+				}
 			]
 		}
 		
 		object ValueControls valueControls {
+			visible false
 			ignoreFrameAttachment false
 			parentFrameAttachPoint 1, -1
 			position -40,10
+		}
+		
+		object DefaultText $^_fpsDisplay {
+			visible false
+			ignoreFrameAttachment false
+			parentFrameAttachPoint 1, 1
+			position -4
 		}
 	]
 }

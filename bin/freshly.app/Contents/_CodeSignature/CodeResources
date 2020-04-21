@@ -36,6 +36,10 @@
 		<data>
 		bntltCp5eDUQ9JHmyG5Eb2kpsFQ=
 		</data>
+		<key>Resources/assets/art/tv_overlay.png</key>
+		<data>
+		WyWVxmgmpSD0eUD8loEP9PEXqsU=
+		</data>
 		<key>Resources/assets/art/white_simple.png</key>
 		<data>
 		Anl5OU6JV1voacxNeXs+khz5CHM=
@@ -54,7 +58,7 @@
 		</data>
 		<key>Resources/assets/classes.fresh</key>
 		<data>
-		lIR5lImKgD/P8Yq8NpUfSLeVDI8=
+		tHayelOVZj7AxlWtZRmy401whAU=
 		</data>
 		<key>Resources/assets/config-Android.fresh</key>
 		<data>
@@ -104,217 +108,17 @@
 		<data>
 		a9DNho2dHA0/ttRkuHeZyMQc4iM=
 		</data>
-		<key>Resources/assets/games/autorun/audio/alert_00.wav</key>
-		<data>
-		Of2dy8EynB4KsjlHDAOqGhE/+po=
-		</data>
-		<key>Resources/assets/games/autorun/audio/alert_01.wav</key>
-		<data>
-		NUL8nYMdZUWcmsq7xvqSjMbuCcw=
-		</data>
-		<key>Resources/assets/games/autorun/audio/alert_02.wav</key>
-		<data>
-		rrteLpyox8wH9evRpQ/QmTAvhFE=
-		</data>
-		<key>Resources/assets/games/autorun/audio/alert_03.wav</key>
-		<data>
-		FKaNv2jjH6DG6F4OqOf/FMioBUA=
-		</data>
-		<key>Resources/assets/games/autorun/audio/attack_00.wav</key>
-		<data>
-		iUyT0oZm/w+FIVdU0nMIGugWOaw=
-		</data>
-		<key>Resources/assets/games/autorun/audio/birds_00.wav</key>
-		<data>
-		omUhIvxqBtmEWBZytVU8KoGSqbY=
-		</data>
-		<key>Resources/assets/games/autorun/audio/birds_01.wav</key>
-		<data>
-		wBQTzKh0Mn99CJbEd+MowlxEcZ8=
-		</data>
-		<key>Resources/assets/games/autorun/audio/birds_02.wav</key>
-		<data>
-		8QLm/6rR/xBhEivukooBWNHT9P8=
-		</data>
-		<key>Resources/assets/games/autorun/audio/birds_03.wav</key>
-		<data>
-		GiNYpiUE/fmX9T7nCWVNj+qYGyk=
-		</data>
-		<key>Resources/assets/games/autorun/audio/coin_00.wav</key>
-		<data>
-		0cV9k9vwkSaJ40/xN3RvgweN0A8=
-		</data>
-		<key>Resources/assets/games/autorun/audio/coin_01.wav</key>
-		<data>
-		+7SkGd/QMbR7O+M+mRMpfRIvViM=
-		</data>
-		<key>Resources/assets/games/autorun/audio/death_00.wav</key>
-		<data>
-		jW8QfQHlplwbACmmexHzjSlkZm8=
-		</data>
-		<key>Resources/assets/games/autorun/audio/family0.mp3</key>
-		<data>
-		8nO36lnH/xuJtLld4vrZqQyy3G8=
-		</data>
-		<key>Resources/assets/games/autorun/audio/forest.ftm</key>
-		<data>
-		SndEy+oRZpjnvUfrjU7QlCYEno8=
-		</data>
-		<key>Resources/assets/games/autorun/audio/hit_swing_00.wav</key>
-		<data>
-		+UnWyBRdBSWAjN+avSGZ7sT0mas=
-		</data>
-		<key>Resources/assets/games/autorun/audio/hit_swing_01.wav</key>
-		<data>
-		2mirJKy3TkWIz31uS9TmfybGrYA=
-		</data>
-		<key>Resources/assets/games/autorun/audio/hit_swing_02.wav</key>
-		<data>
-		8VgjdQ9JDP5o+xSGKZ3W6NHBeVk=
-		</data>
-		<key>Resources/assets/games/autorun/audio/hit_swing_03.wav</key>
-		<data>
-		a8YOPffi20KratERdgIu58w5n4A=
-		</data>
-		<key>Resources/assets/games/autorun/audio/hit_swing_04.wav</key>
-		<data>
-		BlVtJtx9XTttwypx0XYOPnIn+Yk=
-		</data>
-		<key>Resources/assets/games/autorun/audio/hit_swing_05.wav</key>
-		<data>
-		eBOJi4RddsFRoVnedjEbKzXBN5c=
-		</data>
-		<key>Resources/assets/games/autorun/audio/item_down.wav</key>
-		<data>
-		DSm1FX5qgxUdpkkAli+07ZbPiB4=
-		</data>
-		<key>Resources/assets/games/autorun/audio/item_up.wav</key>
-		<data>
-		CoqvZ0HdETCIaBqGHNsTQG0HAfQ=
-		</data>
-		<key>Resources/assets/games/autorun/audio/ouch_00.wav</key>
-		<data>
-		7OioGyxeCKyXoso1KYy00+jUBHA=
-		</data>
-		<key>Resources/assets/games/autorun/audio/ouch_01.wav</key>
-		<data>
-		xSR0kQ1w5E2xjCxQEku//IaWIMY=
-		</data>
-		<key>Resources/assets/games/autorun/audio/ouch_02.wav</key>
-		<data>
-		jaWjxj5fRudBYts+Lq6M75wDBCo=
-		</data>
-		<key>Resources/assets/games/autorun/audio/ouch_03.wav</key>
-		<data>
-		0JU/CgqSoFfRX1Msam3N0tU78fk=
-		</data>
-		<key>Resources/assets/games/autorun/audio/pickup_00.wav</key>
-		<data>
-		HwiZgc6vWHVDXKiqDYASRjWsUzo=
-		</data>
-		<key>Resources/assets/games/autorun/audio/pickup_01.wav</key>
-		<data>
-		t6egzTYWmcQKf5U6orhQCZVLFzg=
-		</data>
-		<key>Resources/assets/games/autorun/audio/pickup_02.wav</key>
-		<data>
-		ygKCoKq9c6wx8uK/a3Qw7GQMVRE=
-		</data>
-		<key>Resources/assets/games/autorun/audio/powerup_00.wav</key>
-		<data>
-		zEn1/Ak2a8nzZmt9LxVJSe5+o4Y=
-		</data>
-		<key>Resources/assets/games/autorun/audio/powerup_01.wav</key>
-		<data>
-		dsGqpgWPlTQIFhpa+HkhfOlO8ZA=
-		</data>
-		<key>Resources/assets/games/autorun/audio/powerup_02.wav</key>
-		<data>
-		O/MXpjtThtcJtNTAhLwar34v4VQ=
-		</data>
-		<key>Resources/assets/games/autorun/audio/purchase_00.wav</key>
-		<data>
-		P/COofF7/a9hnCnGByLihCVCbI0=
-		</data>
-		<key>Resources/assets/games/autorun/audio/random_00.wav</key>
-		<data>
-		KIMjDO00pgWC6+xZIj8JG7u/jeE=
-		</data>
-		<key>Resources/assets/games/autorun/audio/random_01.wav</key>
-		<data>
-		Y2CWZhgKzoSD7vSbwpejJ0N0F0o=
-		</data>
-		<key>Resources/assets/games/autorun/audio/shopkeep.mp3</key>
-		<data>
-		fQImzjHz+foYgv39tgSLtt6MQN8=
-		</data>
-		<key>Resources/assets/games/autorun/audio/step_dirt_00.wav</key>
-		<data>
-		HHDkdxqyT4SpUB8cVLw4oKG4O0Y=
-		</data>
-		<key>Resources/assets/games/autorun/audio/step_dirt_01.wav</key>
-		<data>
-		pO+6sjoR79CbTlR8/HuyXifVs4I=
-		</data>
-		<key>Resources/assets/games/autorun/audio/step_dirt_02.wav</key>
-		<data>
-		qOjVjpdb3taHBrflz+cj6/0ak20=
-		</data>
-		<key>Resources/assets/games/autorun/audio/step_dirt_03.wav</key>
-		<data>
-		jJxtVGP4/zqhaMAe7qoWaXMLZPc=
-		</data>
-		<key>Resources/assets/games/autorun/audio/step_leaves_00.wav</key>
-		<data>
-		+o3ABuRk5d3Lwhy0ip7+8uqZLaI=
-		</data>
-		<key>Resources/assets/games/autorun/audio/step_leaves_01.wav</key>
-		<data>
-		ZXSjbk81NYqSBXTZpwZOth0S5zQ=
-		</data>
-		<key>Resources/assets/games/autorun/audio/step_leaves_02.wav</key>
-		<data>
-		of4zMENAjIqBKQVkTUOlMM8ydWU=
-		</data>
-		<key>Resources/assets/games/autorun/audio/step_leaves_03.wav</key>
-		<data>
-		hcfgeuCFnv2fwaJzLoIRQUuOzjI=
-		</data>
-		<key>Resources/assets/games/autorun/audio/talk_boyo.wav</key>
-		<data>
-		yhXFnfBAEJWnsA+nKQS6NIn0OZA=
-		</data>
-		<key>Resources/assets/games/autorun/audio/talk_husband.wav</key>
-		<data>
-		ijbOp9JwxhW9E82BvWvMYeyhA+w=
-		</data>
-		<key>Resources/assets/games/autorun/audio/talk_lady.wav</key>
-		<data>
-		CaE3rSSfYcBYP0tGSXxrEEXwl9w=
-		</data>
-		<key>Resources/assets/games/autorun/audio/talk_twins.wav</key>
-		<data>
-		fhmM8XaVrgVFzTfRDuVn7Gqt30M=
-		</data>
-		<key>Resources/assets/games/autorun/audio/unlock_00.wav</key>
-		<data>
-		rcr8CiI1eUKCbDhLjNARcAS6JK8=
-		</data>
-		<key>Resources/assets/games/autorun/audio/wilds.mp3</key>
-		<data>
-		K+VnrK+po+29nGcKbiCRndoxOYA=
-		</data>
 		<key>Resources/assets/games/autorun/main.lua</key>
 		<data>
-		jKY2Kx8hRcyZzMYpEB1o7kPcif4=
+		Kwe05UfSZ2jbfmxSrBabx0Fq6BM=
 		</data>
 		<key>Resources/assets/games/autorun/map.tmx</key>
 		<data>
-		cABsqNsjBWGGNmq3LpYMlTiALA0=
+		8XWIjOQAOEdK2RfUfexaOG0BiZw=
 		</data>
 		<key>Resources/assets/games/autorun/sprites.png</key>
 		<data>
-		igQ1WWrow2vMuCeFnRb/P0DcFWo=
+		fwIX9jab9C9WVx7ZcZSTE40B9/U=
 		</data>
 		<key>Resources/assets/games/editor/main.lua</key>
 		<data>
@@ -350,7 +154,7 @@
 		</data>
 		<key>Resources/assets/shaders/SpriteBatch.fsh</key>
 		<data>
-		rT0Evw91AtWx12oy5loQo/qYJuk=
+		tvXJhd6HQrnyqClaCsm7cb4tIh4=
 		</data>
 		<key>Resources/assets/shaders/SpriteBatch.vsh</key>
 		<data>
@@ -410,7 +214,7 @@
 		</data>
 		<key>Resources/assets/stage.fresh</key>
 		<data>
-		MFIQX82hzLHBK6PPLxGtOXwE7jw=
+		mNBzDzQ7AtWjCRIYIcWbqQBhEsY=
 		</data>
 		<key>Resources/assets/strings.fresh</key>
 		<data>
@@ -418,7 +222,7 @@
 		</data>
 		<key>Resources/assets/ver/version.txt</key>
 		<data>
-		iO4FD2e4y6xXmtiXWxs1yWETjIU=
+		0ua5clFLUeJWbYDiTj1qfWyj+J0=
 		</data>
 		<key>Resources/assets/ver/version_Android.txt</key>
 		<data>
@@ -426,7 +230,7 @@
 		</data>
 		<key>Resources/assets/ver/version_Mac.txt</key>
 		<data>
-		iO4FD2e4y6xXmtiXWxs1yWETjIU=
+		0ua5clFLUeJWbYDiTj1qfWyj+J0=
 		</data>
 		<key>Resources/assets/ver/version_iOS.txt</key>
 		<data>
@@ -523,6 +327,17 @@
 			QUSBdbGUe22exWK/y0+qQPQPiIfYauSaYjTFghVh1UA=
 			</data>
 		</dict>
+		<key>Resources/assets/art/tv_overlay.png</key>
+		<dict>
+			<key>hash</key>
+			<data>
+			WyWVxmgmpSD0eUD8loEP9PEXqsU=
+			</data>
+			<key>hash2</key>
+			<data>
+			MvB6BSuzXQSnznQnt9PcURxFWE/E10xJBBczddARvgU=
+			</data>
+		</dict>
 		<key>Resources/assets/art/white_simple.png</key>
 		<dict>
 			<key>hash</key>
@@ -571,11 +386,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			lIR5lImKgD/P8Yq8NpUfSLeVDI8=
+			tHayelOVZj7AxlWtZRmy401whAU=
 			</data>
 			<key>hash2</key>
 			<data>
-			qU+PHZTZuKjTinbt0gNQC82ILEE+OrzGZdDeLMGaGSg=
+			T1J+MU92Y8Bwq+anKwkdQybbCj8VSDAqpy4Wei2E3UE=
 			</data>
 		</dict>
 		<key>Resources/assets/config-Android.fresh</key>
@@ -710,587 +525,37 @@
 			+gsyedUV/hnFgIwpYhC8TPpJhebUOoX6XqBCqSkwNjo=
 			</data>
 		</dict>
-		<key>Resources/assets/games/autorun/audio/alert_00.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			Of2dy8EynB4KsjlHDAOqGhE/+po=
-			</data>
-			<key>hash2</key>
-			<data>
-			Z+TskknWR7eE5ObzcurO/hgcnCGRC5jfot/q3iZ88Vc=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/alert_01.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			NUL8nYMdZUWcmsq7xvqSjMbuCcw=
-			</data>
-			<key>hash2</key>
-			<data>
-			rVKF3Pqrf+yBtNVZHYikxKYMEko1pM8Ca0KYiaSH7Wk=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/alert_02.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			rrteLpyox8wH9evRpQ/QmTAvhFE=
-			</data>
-			<key>hash2</key>
-			<data>
-			g7QNzPZpIqNX3XHVBgPKxC6tv2l0aAJCHEqqE9z20VI=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/alert_03.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			FKaNv2jjH6DG6F4OqOf/FMioBUA=
-			</data>
-			<key>hash2</key>
-			<data>
-			2YijFSLcC9qoG+VkEhrXhCjoojqspDL0Fmlc4MnJ8D4=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/attack_00.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			iUyT0oZm/w+FIVdU0nMIGugWOaw=
-			</data>
-			<key>hash2</key>
-			<data>
-			bPaowWmRpYQc28OepVHnytYtaGMd02ze4Vh9XNyNUEI=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/birds_00.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			omUhIvxqBtmEWBZytVU8KoGSqbY=
-			</data>
-			<key>hash2</key>
-			<data>
-			ueROEap+NBEdwP0Q1YlSZX1JqDvXtPm6vwZSVlLwQjM=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/birds_01.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			wBQTzKh0Mn99CJbEd+MowlxEcZ8=
-			</data>
-			<key>hash2</key>
-			<data>
-			8f66h661xh9NB0gpDevazhUZ3oq+EfuSBxdp+NGC6zk=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/birds_02.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			8QLm/6rR/xBhEivukooBWNHT9P8=
-			</data>
-			<key>hash2</key>
-			<data>
-			r9i1d6XdyLM9oi0NIO/EGRyae0bxAgFf7kDl0VC3ZUE=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/birds_03.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			GiNYpiUE/fmX9T7nCWVNj+qYGyk=
-			</data>
-			<key>hash2</key>
-			<data>
-			+FCqJzC8tX70FB3DQTwdGwaQkbe0AdapIMIwAEeRxcc=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/coin_00.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			0cV9k9vwkSaJ40/xN3RvgweN0A8=
-			</data>
-			<key>hash2</key>
-			<data>
-			KfHH103YyztjO5r3sZs/t7PH+ULLqTW8giXC4pEubM4=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/coin_01.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			+7SkGd/QMbR7O+M+mRMpfRIvViM=
-			</data>
-			<key>hash2</key>
-			<data>
-			OtsAqyAHyFgQhWyARzMbhqVbIv4XteWAacpTBcO2q1I=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/death_00.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			jW8QfQHlplwbACmmexHzjSlkZm8=
-			</data>
-			<key>hash2</key>
-			<data>
-			U/H2WvHXrUn5zVQJ38Bbnk2CWvG5tYsqZBsHsosruk0=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/family0.mp3</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			8nO36lnH/xuJtLld4vrZqQyy3G8=
-			</data>
-			<key>hash2</key>
-			<data>
-			JesSRbmEDwCPJ+e4SwYGfZNhiNJJ7BSI1LC9TjF8lR4=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/forest.ftm</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			SndEy+oRZpjnvUfrjU7QlCYEno8=
-			</data>
-			<key>hash2</key>
-			<data>
-			CABLN2bzn+ejEikzq+kac0W8fY4pHGrwBBKz/QLuTVY=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/hit_swing_00.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			+UnWyBRdBSWAjN+avSGZ7sT0mas=
-			</data>
-			<key>hash2</key>
-			<data>
-			OorJVmHw/Xmy0SCAkeFuoZJlK5KR6iBTf290iWPgoY0=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/hit_swing_01.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			2mirJKy3TkWIz31uS9TmfybGrYA=
-			</data>
-			<key>hash2</key>
-			<data>
-			tf9oGDTA0xm7JZCcNQhQczE6zHXkwRolrz7g9mDJqyE=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/hit_swing_02.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			8VgjdQ9JDP5o+xSGKZ3W6NHBeVk=
-			</data>
-			<key>hash2</key>
-			<data>
-			bjf1RG7OlsWVxMdPCd4/3+JPrtdw/FPeJbpHUN5s+b0=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/hit_swing_03.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			a8YOPffi20KratERdgIu58w5n4A=
-			</data>
-			<key>hash2</key>
-			<data>
-			EP+l6HmNL8frEGHYm2zM7lNKSKWYNbK6CgzEZ1jWkMY=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/hit_swing_04.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			BlVtJtx9XTttwypx0XYOPnIn+Yk=
-			</data>
-			<key>hash2</key>
-			<data>
-			usy4X08+XYpknEogaaPwNQ1tqtBrKSyf5b0EktvwpNg=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/hit_swing_05.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			eBOJi4RddsFRoVnedjEbKzXBN5c=
-			</data>
-			<key>hash2</key>
-			<data>
-			rPYNd9dyPzP6b+fCSj49W396mxopSiLdC3TvitdNAYI=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/item_down.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			DSm1FX5qgxUdpkkAli+07ZbPiB4=
-			</data>
-			<key>hash2</key>
-			<data>
-			JLtzh1puwuCXX+NmGxwMdIFscO6HukqNa1ggtmaLyZU=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/item_up.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			CoqvZ0HdETCIaBqGHNsTQG0HAfQ=
-			</data>
-			<key>hash2</key>
-			<data>
-			2uOZGX1rYAXnmhM15IrOBaVfIs5vdciWhqrZkaIncdQ=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/ouch_00.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			7OioGyxeCKyXoso1KYy00+jUBHA=
-			</data>
-			<key>hash2</key>
-			<data>
-			BvcpmHt+ZyrOUYtMoqUkBDXBdPuxCXIsXpDGMNDQMxE=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/ouch_01.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			xSR0kQ1w5E2xjCxQEku//IaWIMY=
-			</data>
-			<key>hash2</key>
-			<data>
-			kMJcIZVjzt5KRkDwnC14bLcq0N+8oZEjhHraVTlqsl4=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/ouch_02.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			jaWjxj5fRudBYts+Lq6M75wDBCo=
-			</data>
-			<key>hash2</key>
-			<data>
-			iwnSHaTvsNMaNEUOsiE0mlDS+ui61ogQmTjagiGCzP8=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/ouch_03.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			0JU/CgqSoFfRX1Msam3N0tU78fk=
-			</data>
-			<key>hash2</key>
-			<data>
-			eOsp+6/EjnAA6onNER/TvQ3WnwAs9cxLui8QBS0r390=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/pickup_00.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			HwiZgc6vWHVDXKiqDYASRjWsUzo=
-			</data>
-			<key>hash2</key>
-			<data>
-			ws6YmorJLUWFOrnOQTcIGzDf6Waeqtw/L8Vgf5XS9/Q=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/pickup_01.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			t6egzTYWmcQKf5U6orhQCZVLFzg=
-			</data>
-			<key>hash2</key>
-			<data>
-			TFCsXtNZII6P8LRHXYkRxCWc2lkk1a8RbsslCT+araM=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/pickup_02.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			ygKCoKq9c6wx8uK/a3Qw7GQMVRE=
-			</data>
-			<key>hash2</key>
-			<data>
-			hqWH1uayjQPzGTje51ux0E4BaktSnRNqWrRhxcjV6+w=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/powerup_00.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			zEn1/Ak2a8nzZmt9LxVJSe5+o4Y=
-			</data>
-			<key>hash2</key>
-			<data>
-			ziokUnSkdR0gQ7ULBKM4bSqzM/6Pei4H0WVJjHMbb04=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/powerup_01.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			dsGqpgWPlTQIFhpa+HkhfOlO8ZA=
-			</data>
-			<key>hash2</key>
-			<data>
-			+kEszMgGmM4sBbTVPiXG5omj02ROfwhTxmZPRCg0mnk=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/powerup_02.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			O/MXpjtThtcJtNTAhLwar34v4VQ=
-			</data>
-			<key>hash2</key>
-			<data>
-			My1HsdwbmA98YgQPiSMboAxTbXD8VLmWflvPRDXNzC0=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/purchase_00.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			P/COofF7/a9hnCnGByLihCVCbI0=
-			</data>
-			<key>hash2</key>
-			<data>
-			VAyVLjoXaWXz+UwlRCwTJb8e6gskzo190hRg3u+OiAQ=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/random_00.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			KIMjDO00pgWC6+xZIj8JG7u/jeE=
-			</data>
-			<key>hash2</key>
-			<data>
-			2oibvDhBQAPyv5zH9So5Az0pRAgYCAuUn09CdyHxeOM=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/random_01.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			Y2CWZhgKzoSD7vSbwpejJ0N0F0o=
-			</data>
-			<key>hash2</key>
-			<data>
-			1hqagEAbWt67ldJPM3FsTtGsIidJUI9vbkC2K90aGL4=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/shopkeep.mp3</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			fQImzjHz+foYgv39tgSLtt6MQN8=
-			</data>
-			<key>hash2</key>
-			<data>
-			qyCVjLC5lw82CJiKarUnkNqAVbiisN/8ZPUzuskboP8=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/step_dirt_00.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			HHDkdxqyT4SpUB8cVLw4oKG4O0Y=
-			</data>
-			<key>hash2</key>
-			<data>
-			LjsIIthK7g3K8StFHRTEVZnrYaI/+pEVR9ALgvwbb8w=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/step_dirt_01.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			pO+6sjoR79CbTlR8/HuyXifVs4I=
-			</data>
-			<key>hash2</key>
-			<data>
-			pl2ejxcomNA25jLjAP/2Yt2KjOoCPwIVu1cpG4x2HNc=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/step_dirt_02.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			qOjVjpdb3taHBrflz+cj6/0ak20=
-			</data>
-			<key>hash2</key>
-			<data>
-			Vw9cya+vKiMJwhYItc02d9627Qyu3/iE5aKQoakFDIw=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/step_dirt_03.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			jJxtVGP4/zqhaMAe7qoWaXMLZPc=
-			</data>
-			<key>hash2</key>
-			<data>
-			DaIHkOG8oibQ1J/8m0vWsH6X3v7FhAMGv2ioXmIiH+A=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/step_leaves_00.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			+o3ABuRk5d3Lwhy0ip7+8uqZLaI=
-			</data>
-			<key>hash2</key>
-			<data>
-			kCpQ9sM96eyQgdghBZdBOqhYoBEm200jlJdHL5GgrtI=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/step_leaves_01.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			ZXSjbk81NYqSBXTZpwZOth0S5zQ=
-			</data>
-			<key>hash2</key>
-			<data>
-			h7s9BUWNkrvQ/aQoJodaNThjjJYSYeS1+uxonAASVVo=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/step_leaves_02.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			of4zMENAjIqBKQVkTUOlMM8ydWU=
-			</data>
-			<key>hash2</key>
-			<data>
-			vCse342CFrkqnXx5/poIPXX02k4z3ng+k0GlFtceiug=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/step_leaves_03.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			hcfgeuCFnv2fwaJzLoIRQUuOzjI=
-			</data>
-			<key>hash2</key>
-			<data>
-			4pTunIV9vvWht+mIpmltyEz/rpWgfsDzSZmty+B2Vq0=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/talk_boyo.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			yhXFnfBAEJWnsA+nKQS6NIn0OZA=
-			</data>
-			<key>hash2</key>
-			<data>
-			4ofJgV7jIycg8td4JdFUuziytZsJ+UkFhA7ZNRCleuo=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/talk_husband.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			ijbOp9JwxhW9E82BvWvMYeyhA+w=
-			</data>
-			<key>hash2</key>
-			<data>
-			SNMz5qr4CZ/tKcdc+RJg8CP+XleC8ovC6cMlVbgakDQ=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/talk_lady.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			CaE3rSSfYcBYP0tGSXxrEEXwl9w=
-			</data>
-			<key>hash2</key>
-			<data>
-			Uhj+isBfKUePKE7IqlzuM+vzfURbtcClp3uQ7QeCyZQ=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/talk_twins.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			fhmM8XaVrgVFzTfRDuVn7Gqt30M=
-			</data>
-			<key>hash2</key>
-			<data>
-			m/OfP88lCIJeydGRRbhcoclxs9ysIClYlpvFAMcAesM=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/unlock_00.wav</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			rcr8CiI1eUKCbDhLjNARcAS6JK8=
-			</data>
-			<key>hash2</key>
-			<data>
-			PACWnTZvon53/l74g5gj5RPIZ7LN7adqk6Gr0YtsS5g=
-			</data>
-		</dict>
-		<key>Resources/assets/games/autorun/audio/wilds.mp3</key>
-		<dict>
-			<key>hash</key>
-			<data>
-			K+VnrK+po+29nGcKbiCRndoxOYA=
-			</data>
-			<key>hash2</key>
-			<data>
-			Ave7HdFqU2ex5AKS9tiTkyepjdJwZ3/vEDoY3mlskRs=
-			</data>
-		</dict>
 		<key>Resources/assets/games/autorun/main.lua</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			jKY2Kx8hRcyZzMYpEB1o7kPcif4=
+			Kwe05UfSZ2jbfmxSrBabx0Fq6BM=
 			</data>
 			<key>hash2</key>
 			<data>
-			p6/3o9XfBndP7Ovu4o/zVIOl6MytDxvSQ4ts2VXf/F8=
+			t4Wej8M7tcZtTI+pc0Gek5CuhRBUFBLXXNiLdG3WLBw=
 			</data>
 		</dict>
 		<key>Resources/assets/games/autorun/map.tmx</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			cABsqNsjBWGGNmq3LpYMlTiALA0=
+			8XWIjOQAOEdK2RfUfexaOG0BiZw=
 			</data>
 			<key>hash2</key>
 			<data>
-			ii8tEatjMXdzYb5/EgPQ+x9/RbRi6Rft7frbJYDmX68=
+			yTwAIoTRDihRAMu9WZcXH/gSAUlBGHaOtZt/Tbrr2J4=
 			</data>
 		</dict>
 		<key>Resources/assets/games/autorun/sprites.png</key>
 		<dict>
 			<key>hash</key>
 			<data>
-			igQ1WWrow2vMuCeFnRb/P0DcFWo=
+			fwIX9jab9C9WVx7ZcZSTE40B9/U=
 			</data>
 			<key>hash2</key>
 			<data>
-			Q4JojO+BDpkygao7mE8nbnItjmUBxPTkPydw7frkrv0=
+			wtXhvfDFUzesUwNjs4JQ8UfPIBVbHDHZrxP/3EMirvw=
 			</data>
 		</dict>
 		<key>Resources/assets/games/editor/main.lua</key>
@@ -1385,11 +650,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			rT0Evw91AtWx12oy5loQo/qYJuk=
+			tvXJhd6HQrnyqClaCsm7cb4tIh4=
 			</data>
 			<key>hash2</key>
 			<data>
-			WIee3mOMZTlNW84FFkc4MojAEamwFToMsuppU2KIRB0=
+			/PdR5oRSTus2VLLav3ziynwwsdN8It2ErVPQq1XtscQ=
 			</data>
 		</dict>
 		<key>Resources/assets/shaders/SpriteBatch.vsh</key>
@@ -1550,11 +815,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			MFIQX82hzLHBK6PPLxGtOXwE7jw=
+			mNBzDzQ7AtWjCRIYIcWbqQBhEsY=
 			</data>
 			<key>hash2</key>
 			<data>
-			UJLxfO+rZbRmZdbOEu8GpFSH0tHqb6QO/pJdqJz02oI=
+			9x8SPmQjOTl574hp5ykvJG6nBn6KS/OAJYUM0sU5dhc=
 			</data>
 		</dict>
 		<key>Resources/assets/strings.fresh</key>
@@ -1572,11 +837,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			iO4FD2e4y6xXmtiXWxs1yWETjIU=
+			0ua5clFLUeJWbYDiTj1qfWyj+J0=
 			</data>
 			<key>hash2</key>
 			<data>
-			b/M1B8PotuExLpdkgXJ8AwkENfsMImHMFqhW1KkSNAw=
+			zetk9E4PBjlHrfH95KRK/I6237RZ9PTu58Y/B8yjoYE=
 			</data>
 		</dict>
 		<key>Resources/assets/ver/version_Android.txt</key>
@@ -1594,11 +859,11 @@
 		<dict>
 			<key>hash</key>
 			<data>
-			iO4FD2e4y6xXmtiXWxs1yWETjIU=
+			0ua5clFLUeJWbYDiTj1qfWyj+J0=
 			</data>
 			<key>hash2</key>
 			<data>
-			b/M1B8PotuExLpdkgXJ8AwkENfsMImHMFqhW1KkSNAw=
+			zetk9E4PBjlHrfH95KRK/I6237RZ9PTu58Y/B8yjoYE=
 			</data>
 		</dict>
 		<key>Resources/assets/ver/version_iOS.txt</key>
