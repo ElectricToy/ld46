@@ -675,6 +675,7 @@ function tryPickupActor( byActor )
 	if pickupActor == byActor or pickupActor == nil then return nil end
 
 	sfx( 'lift' )
+	worldState.pickedUp = true
 
 	makeHeld( pickupActor )
 	byActor.heldItem = pickupActor
@@ -701,6 +702,7 @@ function tryPickupBlock( byActor )
 			byActor.heldItem.pos = creationPos + actorULOffset( byActor.heldItem )
 
 			sfx( 'lift' )
+			worldState.pickedUp = true
 
 			clearBlock( blockX, blockY )
 			return byActor.heldItem
@@ -711,7 +713,6 @@ function tryPickupBlock( byActor )
 end
 
 function onButton1()
-
 	if player.heldItem ~= nil then
 		tryDropHeldItem()
 	else
@@ -724,7 +725,6 @@ function onButton1()
 end
 
 function onButton2()
-
 	if player.heldItem ~= nil then
 		tryDropHeldItem( { forceAsItem = false, preferDropAll = true } ) -- forcing drop
 	else
@@ -740,18 +740,22 @@ function updateInput( actor )
 	local thrust = vec2:new()
 
 	if btn( 0 ) then
+		worldState.moved = true
 		thrust.x = thrust.x - 1
 	end
 
 	if btn( 1 ) then
+		worldState.moved = true
 		thrust.x = thrust.x + 1
 	end
 
 	if btn( 2 ) then 
+		worldState.moved = true
 		thrust.y = thrust.y - 1
 	end
 
 	if btn( 3 ) then
+		worldState.moved = true
 		thrust.y = thrust.y + 1
 	end
 
@@ -808,7 +812,7 @@ end
 
 function startGame()
 
-	music( 'ld46', 0.5 )
+	music( 'ld46', 0.2 )
 
 	worldState = {}
 
@@ -1466,7 +1470,7 @@ function actorULOffset( actor )
 end
 
 function drawCount( count, x, y )
-	print( '' .. count, round( x ), round( y ))
+	printShadowed( '' .. count, round( x ), round( y ))
 end
 
 function drawActorCount( actor )
@@ -1881,7 +1885,7 @@ function blockCompleteRecipe( x, y, blockType, blockTypeIndex )
 		recipe.effect( x, y, blockType, blockTypeIndex )
 	end
 
-	sfx( 'produce' )
+	sfx( 'produce', 0.5 )
 end
 
 function blockUpdateCooking( x, y, blockType, blockTypeIndex )
@@ -1948,6 +1952,7 @@ function harvesterTick( x, y, blockType, blockTypeIndex )
 				if ticks % harvestRate == 0 then
 					local creationPosition = creationPositionFromBlockAt( x, y )
 					createActor( neighborBlockTypeBase.harvestSource, creationPosition.x, creationPosition.y )
+					sfx( 'produce', 0.5 )
 				end
 			end
 		end)
@@ -1987,7 +1992,9 @@ end
 function sensorTick( x, y, blockType, blockTypeIndex, triggerIfSensed, toTypeIfTriggered )
 	local sensedActor = nil
 	forEachActorOnBlock( x, y - 1, function( actor )
-		if  not actor.held and
+		if  not actor.held and 
+			actor ~= player and
+			actor.shadowHost == nil and
 			not actor.config.invisibleToSensors then
 			sensedActor = actor
 		end
@@ -2066,7 +2073,7 @@ function robotOnChip( x, y, blockType, blockTypeIndex )
 	robotOnCompletedRecipe()
 end
 
-ROBOT_NAME = '@4!R'
+ROBOT_NAME = '@73N'
 
 ROBOT_RECIPE_DURATION = 0
 
@@ -2192,7 +2199,9 @@ blockConfigs = {
 		},
 		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
 		tick = function( x, y, blockType, blockTypeIndex )
-			blockCheckRecipes( x, y, blockType, blockTypeIndex )
+			if worldState.robotFound then
+				blockCheckRecipes( x, y, blockType, blockTypeIndex )
+			end
 		end, 
 	},
 	combiner_on = {
@@ -2639,6 +2648,7 @@ function drawResourceIcon( resourceKey, x, y )
 	local sprite = config.animations.idle.frames[1]
 	if sprite == nil then return end
 
+	spr( sprite, x, y + 1, 1, 1, false, false, 0xFF000000 )
 	spr( sprite, x, y )
 
 	return 8
@@ -2726,8 +2736,9 @@ end
 
 function drawRobotNeed( needRecipe )
 	if worldState.robotFound then
-		printRightAligned( ROBOT_NAME .. ' needs:', screen_wid() - 10, 6, WHITE, printShadowed )
-		drawIngredientList( needRecipe.inputs, screen_wid() - 16 - 10, 12 )
+		printRightAligned( ROBOT_NAME, screen_wid() - 10, 6, WHITE, printShadowed )
+		printRightAligned( ' needs', screen_wid() - 10, 14, WHITE, printShadowed )
+		drawIngredientList( needRecipe.inputs, screen_wid() - 16 - 10, 20 )
 	end
 end
 
@@ -2744,8 +2755,22 @@ function drawHUDQuest()
 	drawRobotNeed( currentNeed )
 end
 
+function drawInstructions()
+	if not worldState.moved then
+		printCentered( 'ARROW KEYS TO MOVE.', screen_wid() // 2, screen_hgt() - (16+20), WHITE, printShadowed )
+	end
+
+	if not worldState.pickedUp then
+		printCentered( 'Z and X TO PICK UP', screen_wid() // 2, screen_hgt() - (16+10), WHITE, printShadowed )
+		printCentered( 'AND PLACE THINGS.', screen_wid() // 2, screen_hgt() - (16), WHITE, printShadowed )
+		
+	end
+end
+
 function drawHUD()
 	camera( 0, 0 )
+
+	drawInstructions()
 
 	drawHUDFuelGuage()
 
