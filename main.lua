@@ -463,15 +463,15 @@ function actorControlThrust( actor, thrust )
 	end
 end
 
-ARM_LENGTH = 2
-ARM_OFFSET = vec2:new( 0, -2 )
+ARM_LENGTH = 4
+ARM_OFFSET = vec2:new( 0, -4 )
 
 function pickupPoint( byActor )
 	return byActor.pos + ARM_OFFSET + byActor.heading * ARM_LENGTH
 end
 
 function placementPoint( byActor )
-	return byActor.pos + vec2:new( 0, 4 ) + byActor.heading * ARM_LENGTH
+	return byActor.pos + ARM_OFFSET + byActor.heading * ARM_LENGTH
 end
 
 function blockInteractionTile( byActor )
@@ -542,11 +542,12 @@ function mayPlaceBlockOnBlock( x, y )
 end
 
 function tryPlaceAsBlock( item, direction, position )
+	assert( position )
 	local blockTypeForItem = actorPlacementBlock( item, direction )
 	if blockTypeForItem == nil then return nil end
 
 	-- clear block placement area?
-	local placementPos = position or actorCenter( item )
+	local placementPos = position or item.pos
 	local placementX = worldToTile( placementPos.x )
 	local placementY = worldToTile( placementPos.y )
 	if not mayPlaceBlockOnBlock( placementX, placementY ) then 
@@ -593,7 +594,7 @@ function tryDropHeldItem( options )
 	local placed = false
 	if not options.forceAsItem or options.forceAsBlock then
 		-- try to place as a block
-		local placementX, placementY = playerTryPlaceAsBlock( item, player.heading:cardinalDirection(), dropPoint.pos )
+		local placementX, placementY = playerTryPlaceAsBlock( item, player.heading:cardinalDirection(), dropPoint )
 		placed = placed or placementX ~= nil
 	end
 
