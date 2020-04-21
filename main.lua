@@ -2883,11 +2883,11 @@ function drawTitle()
 	local midX = screen_wid()/2
 
 	-- fillp( bitPatternForAlpha( opacity * 0.1 ))
-	-- spr( 19, midX - 3*16, 20, 6, 2, false, false, 0xFF000000 )
+	-- spr( 19, midX - 2.5*16, 20, 6, 2, false, false, 0xFF000000 )
 
 	fillp( bitPatternForAlpha( opacity ))
-	spr( 19, midX - 3*16, 4, 6, 2 )
-	printCentered( 'KEEP. HIM. ALIVE.', midX, 36, WHITE, printShadowed )
+	spr( 19, midX - 42, 4, 6, 2 )
+	printCentered( 'KEEP. HIM. ALIVE.', midX + 4, 36, WHITE, printShadowed )
 
 	fillp(0)
 end
