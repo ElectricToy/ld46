@@ -2624,6 +2624,7 @@ function updateFuelGuage()
 
 	if guageFlashSpeed > 0 and ( ticks % guageFlashSpeed ) == 0 then
 		guage.flashBrightness = 1
+		sfx( 'warning' )
 	end
 end
 
@@ -2692,8 +2693,8 @@ function drawBlockRecipes( blockType )
 	end
 end
 
-function printShadowed( text, x, y, color )
-	print( text, x, y+1, 0xFF161C21 )
+function printShadowed( text, x, y, color, shadowColor )
+	print( text, x, y+1, shadowColor or 0xFF161C21 )
 	print( text, x, y, color )
 end
 
@@ -2705,7 +2706,7 @@ function drawHUDBlockInfo()
 
 	withBlockTypeAt( x, y, function( blockType, blockTypeIndex )
 		withBaseBlockType( blockTypeIndex, function( blockTypeBase, baseBlockTypeIndex )
-			printShadowed( blockTypeBase.name or '', 6, 6, 0xFFE3E0F2 )
+			printShadowed( blockTypeBase.name or '', 6, 6, BRIGHT_RED )
 
 			if type( blockTypeBase.explanation ) == 'table' then
 				for _, text in ipairs( blockTypeBase.explanation ) do
@@ -2847,6 +2848,40 @@ function drawDialogue()
 	printCentered( '[X] or [Z] to continue', midX, 100, BRIGHT_RED, printShadowed )
 end
 
+TITLE_FADE_DURATION_SECS = 3
+
+function drawTitle()
+
+	if worldState.robotDialoguing or worldState.robotFound then return end
+
+	if( worldState.pickedUp or worldState.moved ) and worldState.titleFadeStart == nil then
+		worldState.titleFadeStart = ticks
+	end
+
+	local opacity = 1
+
+	if worldState.titleFadeStart ~= nil then
+		local titleShownDuration = ( ticks - worldState.titleFadeStart ) / 60
+
+		if titleShownDuration > TITLE_FADE_DURATION_SECS then
+			return
+		end
+
+		opacity = ( 1 - clamp( titleShownDuration / TITLE_FADE_DURATION_SECS, 0, 1 )) ^ (1/2)
+	end
+
+	local midX = screen_wid()/2
+
+	-- fillp( bitPatternForAlpha( opacity * 0.1 ))
+	-- spr( 19, midX - 3*16, 20, 6, 2, false, false, 0xFF000000 )
+
+	fillp( bitPatternForAlpha( opacity ))
+	spr( 19, midX - 3*16, 4, 6, 2 )
+	printCentered( 'KEEP. HIM. ALIVE.', midX, 36, WHITE, printShadowed )
+
+	fillp(0)
+end
+
 function draw()
 	-- cls( 0xff000040 )
 
@@ -2866,6 +2901,8 @@ function draw()
 	else
 		drawHUD()
 	end
+
+	drawTitle()
 
 	camera( 0, 0 )
 	drawDebug()
