@@ -463,19 +463,20 @@ function actorControlThrust( actor, thrust )
 	end
 end
 
-ARM_LENGTH = 4
-ARM_OFFSET = vec2:new( 0, -4 )
+ARM_OFFSET = vec2:new( 0, -2 )
 
-function pickupPoint( byActor )
-	return byActor.pos + ARM_OFFSET + byActor.heading * ARM_LENGTH
+function pickupPoint( byActor, useArmLength )
+	assert( useArmLength )
+	return byActor.pos + ARM_OFFSET + byActor.heading * useArmLength
 end
 
-function placementPoint( byActor )
-	return byActor.pos + ARM_OFFSET + byActor.heading * ARM_LENGTH
+function placementPoint( byActor, useArmLength )
+	assert( useArmLength )
+	return byActor.pos + ARM_OFFSET + byActor.heading * useArmLength
 end
 
-function blockInteractionTile( byActor )
-	local point = pickupPoint( byActor )
+function blockInteractionTile( byActor, useArmLength )
+	local point = pickupPoint( byActor, useArmLength )
 
 	local pickupTileX = worldToTile( point.x )
 	local pickupTileY = worldToTile( point.y )
@@ -488,9 +489,9 @@ function blockInteractionTile( byActor )
 	return pickupTileX, pickupTileY
 end
 
-function blockToPickup( byActor )
+function blockToPickup( byActor, useArmLength )
 
-	local pickupTileX, pickupTileY = blockInteractionTile( byActor )
+	local pickupTileX, pickupTileY = blockInteractionTile( byActor, useArmLength )
 
 	local blockType = blockTypeAt( pickupTileX, pickupTileY )
 	if blockType == nil or blockType.stationary then return nil end
@@ -579,6 +580,8 @@ function playerTryPlaceAsBlock( item, direction, position )
 	return placementX, placementY
 end
 
+DEFAULT_ARM_LENGTH = 4
+
 function tryDropHeldItem( options )
 	local item = player.heldItem
 	if not item then return end
@@ -589,7 +592,7 @@ function tryDropHeldItem( options )
 		preferDropAll = false
 	}
 
-	local dropPoint = placementPoint( player )
+	local dropPoint = placementPoint( player, DEFAULT_ARM_LENGTH )
 
 	local placed = false
 	if not options.forceAsItem or options.forceAsBlock then
@@ -671,47 +674,62 @@ end
 function tryPickupActor( byActor )
 	if byActor.heldItem ~= nil then return nil end
 
-	-- look for actors near the pick area
-	local point = pickupPoint( byActor )
-	local pickupActor = findPickupActorNear( byAcor, point.x, point.y, 12 )
-	if pickupActor == byActor or pickupActor == nil then return nil end
+	function tryArmLength( armLength )
+		-- look for actors near the pick area
+		local point = pickupPoint( byActor, armLength )
+		local pickupActor = findPickupActorNear( byAcor, point.x, point.y, 12 )
+		if pickupActor == byActor or pickupActor == nil then return nil end
 
-	sfx( 'lift' )
-	worldState.pickedUp = true
+		sfx( 'lift' )
+		worldState.pickedUp = true
 
-	makeHeld( pickupActor )
-	byActor.heldItem = pickupActor
-	return pickupActor
+		makeHeld( pickupActor )
+		byActor.heldItem = pickupActor
+		return pickupActor
+	end
+
+	local item = tryArmLength( DEFAULT_ARM_LENGTH )
+	if item == nil then
+		return tryArmLength( 0 )
+	end
+	return item
 end
 
 function tryPickupBlock( byActor )
 	if byActor.heldItem ~= nil then return nil end
 
-	local blockX, blockY = blockToPickup( byActor )
-	if blockX ~= nil then
-		-- place in inventory
-		local creationPos = vec2:new( blockX, blockY ) * PIXELS_PER_TILE
+	function tryArmLength( armLength )
+		local blockX, blockY = blockToPickup( byActor, armLength )
+		if blockX ~= nil then
+			-- place in inventory
+			local creationPos = vec2:new( blockX, blockY ) * PIXELS_PER_TILE
 
-		local blockIndex = mget( blockX, blockY )
-		byActor.heldItem = createActorForBlockIndex( blockIndex, creationPos.x, creationPos.y )
+			local blockIndex = mget( blockX, blockY )
+			byActor.heldItem = createActorForBlockIndex( blockIndex, creationPos.x, creationPos.y )
 
-		if byActor.heldItem ~= nil then
+			if byActor.heldItem ~= nil then
 
-			createActor( 'pickup_particles', blockX * PIXELS_PER_TILE + 8, blockY * PIXELS_PER_TILE + 16 )
+				createActor( 'pickup_particles', blockX * PIXELS_PER_TILE + 8, blockY * PIXELS_PER_TILE + 16 )
 
-			makeHeld( byActor.heldItem )
+				makeHeld( byActor.heldItem )
 
-			byActor.heldItem.pos = creationPos + actorULOffset( byActor.heldItem )
+				byActor.heldItem.pos = creationPos + actorULOffset( byActor.heldItem )
 
-			sfx( 'lift' )
-			worldState.pickedUp = true
+				sfx( 'lift' )
+				worldState.pickedUp = true
 
-			clearBlock( blockX, blockY )
-			return byActor.heldItem
+				clearBlock( blockX, blockY )
+				return byActor.heldItem
+			end
 		end
+		return nil
 	end
 
-	return nil
+	local item = tryArmLength( DEFAULT_ARM_LENGTH )
+	if item == nil then
+		return tryArmLength( 0 )
+	end
+	return item
 end
 
 function onButton1()
@@ -963,7 +981,7 @@ actorConfigurations = {
 	player = {
 		dims = vec2:new( 7, 13 ),
 		maxThrust = 0.35,
-		ulOffset = vec2:new( 9, 15 ),
+		ulOffset = vec2:new( 8, 15 ),
 		tileSizeX = 1,
 		tileSizeY = 1,
 		animations = {
@@ -1951,7 +1969,7 @@ function harvesterTick( x, y, blockType, blockTypeIndex )
 		withBaseBlockType( neighborBlockTypeIndex, function( neighborBlockTypeBase, neighborBaseBlockTypeIndex )
 			if neighborBlockTypeBase.harvestSource ~= nil then
 				local harvestRate = ( neighborBlockTypeBase.harvestRate or DEFAULT_HARVEST_RATE ) * 60
-				if ticks % harvestRate == 0 then
+				if ( ticks + 1 ) % harvestRate == 0 then
 					local creationPosition = creationPositionFromBlockAt( x, y )
 					createActor( neighborBlockTypeBase.harvestSource, creationPosition.x, creationPosition.y )
 					sfx( 'produce', 0.5 )
