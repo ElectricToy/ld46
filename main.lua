@@ -583,6 +583,7 @@ end
 DEFAULT_ARM_LENGTH = 4
 
 function tryDropHeldItem( options )
+
 	local item = player.heldItem
 	if not item then return end
 
@@ -633,7 +634,7 @@ function findPickupActorNear( forActor, x, y, radius )
 	local nearestActor = nil
 	local nearestDistSquared = nil
 	forEachActorNear( x, y, radius, function( actor, distSquared )
-		if not actor.config.mayBePickedUp or actor == forActor then return end
+		if actor.held or not actor.config.mayBePickedUp or actor == forActor then return end
 		
 		if nearestDistSquared == nil or distSquared < nearestDistSquared then
 			nearestDistSquared = distSquared
@@ -672,7 +673,6 @@ function makeNotHeld( item, dropPoint )
 end
 
 function tryPickupActor( byActor )
-	if byActor.heldItem ~= nil then return nil end
 
 	function tryArmLength( armLength )
 		-- look for actors near the pick area
@@ -680,12 +680,21 @@ function tryPickupActor( byActor )
 		local pickupActor = findPickupActorNear( byAcor, point.x, point.y, 12 )
 		if pickupActor == byActor or pickupActor == nil then return nil end
 
-		sfx( 'lift' )
-		worldState.pickedUp = true
+		if byActor.heldItem == nil or canCombine( pickupActor, byActor.heldItem ) then
+			sfx( 'lift' )
+			worldState.pickedUp = true
 
-		makeHeld( pickupActor )
-		byActor.heldItem = pickupActor
-		return pickupActor
+			if byActor.heldItem ~= nil then
+				combineResources( byActor.heldItem, pickupActor )
+			else
+				makeHeld( pickupActor )
+				byActor.heldItem = pickupActor
+			end
+			
+			return pickupActor
+		else
+			return nil
+		end
 	end
 
 	local item = tryArmLength( DEFAULT_ARM_LENGTH )
@@ -696,7 +705,6 @@ function tryPickupActor( byActor )
 end
 
 function tryPickupBlock( byActor )
-	if byActor.heldItem ~= nil then return nil end
 
 	function tryArmLength( armLength )
 		local blockX, blockY = blockToPickup( byActor, armLength )
@@ -705,21 +713,27 @@ function tryPickupBlock( byActor )
 			local creationPos = vec2:new( blockX, blockY ) * PIXELS_PER_TILE
 
 			local blockIndex = mget( blockX, blockY )
-			byActor.heldItem = createActorForBlockIndex( blockIndex, creationPos.x, creationPos.y )
+			local pickupActor = createActorForBlockIndex( blockIndex, creationPos.x, creationPos.y )
 
-			if byActor.heldItem ~= nil then
+			if pickupActor and ( byActor.heldItem == nil or canCombine( pickupActor, byActor.heldItem )) then
 
 				createActor( 'pickup_particles', blockX * PIXELS_PER_TILE + 8, blockY * PIXELS_PER_TILE + 16 )
-
-				makeHeld( byActor.heldItem )
-
-				byActor.heldItem.pos = creationPos + actorULOffset( byActor.heldItem )
-
 				sfx( 'lift' )
 				worldState.pickedUp = true
 
+				if byActor.heldItem ~= nil then
+					combineResources( byActor.heldItem, pickupActor )
+				else
+					makeHeld( pickupActor )
+					pickupActor.pos = creationPos + actorULOffset( pickupActor )
+					byActor.heldItem = pickupActor
+				end
+
 				clearBlock( blockX, blockY )
-				return byActor.heldItem
+
+				return pickupActor
+			else
+				return nil
 			end
 		end
 		return nil
@@ -733,22 +747,24 @@ function tryPickupBlock( byActor )
 end
 
 function onButton1()
-	if player.heldItem ~= nil then
-		tryDropHeldItem()
-	else
-		-- Pickup
+	-- Pickup, prefering actor.
+	if tryPickupActor( player ) == nil then
+		if tryPickupBlock( player ) == nil then
 
-		if tryPickupActor( player ) == nil then
-			tryPickupBlock( player )
+			-- Couldn't pickup. Drop?
+			if player.heldItem ~= nil then
+				tryDropHeldItem()
+			end
 		end
 	end
 end
 
 function onButton2()
+	-- try to drop.
 	if player.heldItem ~= nil then
 		tryDropHeldItem( { forceAsItem = false, preferDropAll = true } ) -- forcing drop
 	else
-		-- Pickup
+		-- Pickup, prefering block.
 		if tryPickupBlock( player ) == nil then
 			tryPickupActor( player )
 		end
@@ -807,27 +823,10 @@ function updateViewTransform()
 end
 
 function populateWithActors()
-	-- createActor( 'chip', 17 * PIXELS_PER_TILE, 17 * PIXELS_PER_TILE )
-	-- createActor( 'iron_ore', 60, 40 )
-	-- createActor( 'iron_ore', 100, 40 )
-	-- createActor( 'iron_ore', 120, 40 )
-	-- createActor( 'iron_ore', 30, 40 )
-	-- createActor( 'rubber', 60, 60 )
-	-- createActor( 'rubber', 100, 60 )
-	-- createActor( 'rubber', 120, 60 )
-	-- createActor( 'rubber', 30, 60 )
-	-- createActor( 'wood', 60, 80 )
-	-- createActor( 'wood', 60, 80 )
-	-- createActor( 'wood', 100, 80 )
-	-- createActor( 'wood', 30, 80 )
-	-- createActor( 'copper', 60, 100 )
-	-- createActor( 'copper', 60, 100 )
-	-- createActor( 'copper', 100, 100 )
-	-- createActor( 'copper', 30, 100 )
-	-- createActor( 'gold_ore', 60, 110 )
-	-- createActor( 'gold_ore', 60, 110 )
-	-- createActor( 'gold_ore', 100, 110 )
-	-- createActor( 'gold_ore', 30, 110 )
+
+	createActor( 'chip', 10 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+	createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+	createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
 end
 
 function startGame()
@@ -900,25 +899,35 @@ function updatePlayer( actor )
 	end
 end
 
+function canCombine( a, b )
+	assert( a and b )
+	return a.configKey == b.configKey
+		   and ( a.count or 1 ) + ( b.count or 1 ) <= RESOURCE_MAX_COUNT_DEFAULT
+		   and a.config.mayCombine
+		   and b.config.mayCombine 
+end
+
+function canCombineOnGround( a, b )
+	assert( a and b )
+	return canCombine( a, b ) and
+		   not a.held and not b.held
+end
+
 function combineResources( a, b )
 	assert( a.configKey == b.configKey )
 
 	local total = ( a.count or 1 ) + ( b.count or 1 )
 
-	a.count = math.min( total, a.config.maxCount or RESOURCE_MAX_COUNT_DEFAULT )
-	a.pos:set( b.pos )
-	a.lastPos:set( a.pos )
-	a.vel:set( 0 )
+	a.count = math.min( total, RESOURCE_MAX_COUNT_DEFAULT )
 
 	deleteActor( b )
 end
 
-function actorMayCombine( actor )
-	return actor.config.mayCombine and not actor.held
-end
-
 function onResourcesCollide( a, b )
-	if a.configKey == b.configKey and actorMayCombine( a ) and actorMayCombine( b ) then
+	if canCombineOnGround( a, b ) then
+		a.pos:set( b.pos )
+		a.lastPos:set( a.pos )
+		a.vel:set( 0 )	
 		combineResources( a, b )
 	end
 end
@@ -2579,9 +2588,8 @@ function actorCountAdd( actor, amount )
 	if actor.count == nil then actor.count = 1 end
 	actor.count = actor.count + amount
 
-	local maxCount = actor.config.maxCount or RESOURCE_MAX_COUNT_DEFAULT
-	if actor.count > maxCount then
-		actor.count = maxCount
+	if actor.count > RESOURCE_MAX_COUNT_DEFAULT then
+		actor.count = RESOURCE_MAX_COUNT_DEFAULT
 	end
 
 	if actor.count < 1 then 
