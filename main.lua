@@ -764,10 +764,10 @@ function onButton2()
 	if player.heldItem ~= nil then
 		tryDropHeldItem( { forceAsItem = false, preferDropAll = true } ) -- forcing drop
 	else
-		-- Pickup, prefering block.
-		if tryPickupBlock( player ) == nil then
-			tryPickupActor( player )
-		end
+		-- -- Pickup, prefering block.
+		-- if tryPickupBlock( player ) == nil then
+		-- 	tryPickupActor( player )
+		-- end
 	end
 end
 
