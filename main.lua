@@ -899,11 +899,11 @@ function onResourcesCollide( a, b )
 	end
 end
 
-ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 5
+ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 30
 FUEL_LOSS_PER_TICK = 1
 FUEL_LOSS_PER_SECOND = FUEL_LOSS_PER_TICK * 60
 ROBOT_FUEL_PER_WOOD = FUEL_LOSS_PER_SECOND * ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS
-ROBOT_MAX_FUEL = ROBOT_FUEL_PER_WOOD * 4
+ROBOT_MAX_FUEL = ROBOT_FUEL_PER_WOOD * 9
 MAX_FUEL_FOR_NEEDINESS = FUEL_LOSS_PER_SECOND * 30
 MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY = FUEL_LOSS_PER_SECOND * 5
 MIN_FUEL_FOR_MAX_GUAGE_FLICKER = MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY + FUEL_LOSS_PER_SECOND * 5
@@ -2110,7 +2110,7 @@ function robotBaseClass()
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
 			if robot == nil then
 				robot = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE + 22, ( y + 1 ) * PIXELS_PER_TILE - 1 )
-				robot.fuel = ROBOT_MAX_FUEL
+				robot.fuel = FUEL_LOSS_PER_SECOND * 60 * 4
 			end
 		end,
 		tick = function( x, y, blockType, blockTypeIndex )
@@ -2127,6 +2127,7 @@ function dataForBlockAt( x, y )
 	return blockData[ index ]
 end
 
+CONVEYOR_EXPLANATION = { 'When placing, direction', "which way you're moving." }
 SENSOR_EXPLANATION = { 'Detects items.', 'Triggers Conveyors.' }
 HARVESTER_EXPLANATION = 'Gathers resources.'
 COMBINER_EXPLANATION = { 'Combines resources', 'to make new ones.' }
@@ -2138,6 +2139,7 @@ blockConfigs = {
 	},
 	conveyor = {
 		name = 'Conveyor',
+		explanation = CONVEYOR_EXPLANATION,
 		actorConfigName = 'conveyor',
 		conveyor = { direction = vec2:new( 0, -1 )},
 		onPlaced = conveyorOnPlaced,
