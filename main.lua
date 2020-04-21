@@ -831,9 +831,9 @@ end
 
 function populateWithActors()
 
-	createActor( 'chip', 10 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
-	createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
-	createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+	-- createActor( 'chip', 10 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+	-- createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+	-- createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
 end
 
 function startGame()
