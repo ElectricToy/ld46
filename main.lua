@@ -2138,7 +2138,7 @@ end
 CONVEYOR_EXPLANATION = { 'When placing, direction', "depends on", "which way you're moving." }
 SENSOR_EXPLANATION = { 'Detects items.', 'Triggers Conveyors.' }
 HARVESTER_EXPLANATION = 'Gathers resources.'
-COMBINER_EXPLANATION = { 'Combines resources', 'to make new ones.' }
+COMBINER_EXPLANATION = { 'Makes items and blocks.' }
 OVEN_EXPLANATION = 'Turns ore into metal.'
 
 blockConfigs = {
@@ -2660,7 +2660,7 @@ function drawIngredientList( ingredients, x, y )
 	local i = 1
 	for key, count in pairs( ingredients ) do
 		if i > 1 then
-			print( '+', x, y + RECIPE_TEXT_OFFSET_Y, RECIPE_TEXT_COLOR )
+			printShadowed( '+', x, y + RECIPE_TEXT_OFFSET_Y, RECIPE_TEXT_COLOR )
 			x = x + 8
 		end
 
@@ -2679,17 +2679,17 @@ end
 
 function drawBlockRecipes( blockType )
 
-	local y = 36
+	local y = 26
 	for _, recipe in ipairs( blockType.recipes ) do
 		if recipe.output ~= nil then
 			local x = drawIngredientList( recipe.output, 10, y ) + 2
 
-			print( '<=', x, y + RECIPE_TEXT_OFFSET_Y, RECIPE_TEXT_COLOR )
+			printShadowed( '<=', x, y + RECIPE_TEXT_OFFSET_Y, RECIPE_TEXT_COLOR )
 			x = x + 14
 
 			drawIngredientList( recipe.inputs, x, y )
 
-			y = y + 14
+			y = y + 17
 		end
 	end
 end
