@@ -650,6 +650,7 @@ end
 
 function makeHeld( item )
 	item.held = true
+	item.lastPlayerPlacedPos = nil
 	item.inert = true
 	item.nonColliding = true
 	item.z = 0
@@ -939,18 +940,20 @@ function onResourcesCollide( a, b )
 	end
 end
 
-ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 15
+ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 10
 FUEL_LOSS_PER_TICK = 1
 FUEL_LOSS_PER_SECOND = FUEL_LOSS_PER_TICK * 60
 ROBOT_FUEL_PER_WOOD = FUEL_LOSS_PER_SECOND * ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS
 ROBOT_MAX_FUEL = ROBOT_FUEL_PER_WOOD * 9
+ROBOT_INITIAL_FUEL = FUEL_LOSS_PER_SECOND * 60 * 1.5
 MAX_FUEL_FOR_NEEDINESS = FUEL_LOSS_PER_SECOND * 30
-MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY = FUEL_LOSS_PER_SECOND * 5
-MIN_FUEL_FOR_MAX_GUAGE_FLICKER = MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY + FUEL_LOSS_PER_SECOND * 5
+MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY = FUEL_LOSS_PER_SECOND * 4
+MIN_FUEL_FOR_MAX_GUAGE_FLICKER = MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY + FUEL_LOSS_PER_SECOND * 10
 
 function onRobotOutOfFuel( actor )
 	if not worldState.gameLost then
 		worldState.gameLost = true
+		worldState.gameOverStartTime = realTicks
 		color_multiplied_g = 0
 		color_multiplied_b = 0
 		music( '' )
@@ -961,6 +964,7 @@ end
 function onRobotCompletedAllRecipes()
 	if not worldState.gameWon then
 		worldState.gameWon = true
+		worldState.gameOverStartTime = realTicks
 		sfx( 'win' )
 	end
 end
@@ -2160,7 +2164,7 @@ function robotBaseClass()
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
 			if robot == nil then
 				robot = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE + 22, ( y + 1 ) * PIXELS_PER_TILE - 1 )
-				robot.fuel = FUEL_LOSS_PER_SECOND * 60 * 4
+				robot.fuel = ROBOT_INITIAL_FUEL
 			end
 		end,
 		tick = function( x, y, blockType, blockTypeIndex )
@@ -2210,7 +2214,7 @@ blockConfigs = {
 		on_version = 516,
 		recipes = {
 			{
-				inputs = { iron = 3, rubber = 2 },
+				inputs = { iron = 2, rubber = 1 },
 				output = { conveyor = 1 },
 				duration = 0.5,
 			},
@@ -2220,7 +2224,7 @@ blockConfigs = {
 				duration = 0.5,
 			},
 			{
-				inputs = { iron = 2, gold = 2 },
+				inputs = { iron = 6, gold = 4 },
 				output = { sensor = 1 },
 				duration = 0.5,
 			}, 
@@ -2272,22 +2276,24 @@ blockConfigs = {
 		tick = sensorTickOn,
 	},
 	tree_base = {
+		name = 'Tree',
 		sponsoredActorConfig = 'tree',
 		harvestSource = 'wood',
-		harvestRate = 10,
-		onPlaced = function( x, y, blockType, blockTypeIndex ) 
-			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
-		end,
-	},
-	rubber_tree_base = {
-		sponsoredActorConfig = 'tree_rubber',
-		harvestSource = 'rubber',
 		harvestRate = 12,
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
 			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
 		end,
 	},
-	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 15 },
+	rubber_tree_base = {
+		name = 'Rubber Tree',
+		sponsoredActorConfig = 'tree_rubber',
+		harvestSource = 'rubber',
+		harvestRate = 15,
+		onPlaced = function( x, y, blockType, blockTypeIndex ) 
+			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
+		end,
+	},
+	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 12 },
 	source_gold_ore = { name = 'Gold Ore', harvestSource = 'gold_ore', harvestRate = 60 }, 
 	source_copper = { name = 'Copper', harvestSource = 'copper', harvestRate = 20 }, 
 	source_stone = { name = 'Stone', harvestSource = 'stone', harvestRate = 12 }, 
@@ -2478,7 +2484,7 @@ function updateBlocks()
 end
 
 function speechSound()
-	sfx( 'speech' .. math.floor( randInt( 1, 4 )) )
+	sfx( 'speech' .. math.floor( randInt( 1, 4 )), 0.2 )
 end
 
 function onRobotFound()
@@ -2509,9 +2515,15 @@ function updateActive()
 	ticks = ticks + 1
 end
 
+function pressToRestartAvailable()
+	return ( realTicks - worldState.gameOverStartTime ) / 60 > 1.5
+end
+
 function pressToRestart()
-	if btnp( 4 ) or btnp( 5 ) then
-		startGame()
+	if pressToRestartAvailable() then
+		if btnp( 4 ) or btnp( 5 ) then
+			startGame()
+		end
 	end
 end
 
@@ -2660,13 +2672,15 @@ guage = {
 }
 
 function updateFuelGuage()
+	if not worldState.robotFound then return end
+
 	guage.flashBrightness = lerp( guage.flashBrightness, 0.0, 0.1 )
 
 	local guageFlashSpeed = ( robot.fuel <= MIN_FUEL_FOR_MAX_GUAGE_FLICKER ) and 10 or ( robot.fuel <= MAX_FUEL_FOR_NEEDINESS and 60 or 0 )
 
 	if guageFlashSpeed > 0 and ( ticks % guageFlashSpeed ) == 0 then
 		guage.flashBrightness = 1
-		sfx( 'warning' )
+		sfx( 'warning', 0.20 )
 	end
 end
 
@@ -2832,8 +2846,10 @@ function drawHUD()
 end
 
 function drawPlayAgain( x )
-	printCentered( 'PLAY AGAIN!', x, 90, WHITE, printShadowed )
-	printCentered( '[X]', x, 100, WHITE, printShadowed )
+	if pressToRestartAvailable() then
+		printCentered( 'PLAY AGAIN!', x, 90, WHITE, printShadowed )
+		printCentered( '[X]', x, 100, WHITE, printShadowed )
+	end
 end
 
 function drawGameWon()
