@@ -959,13 +959,12 @@ function onResourcesCollide( a, b )
 	end
 end
 
-ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 11
+ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 10
 FUEL_LOSS_PER_TICK = 1
 FUEL_LOSS_PER_SECOND = FUEL_LOSS_PER_TICK * 60
 ROBOT_FUEL_PER_WOOD = FUEL_LOSS_PER_SECOND * ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS
 ROBOT_MAX_FUEL = ROBOT_FUEL_PER_WOOD * 9
-ROBOT_INITIAL_FUEL = FUEL_LOSS_PER_SECOND * 60 * 1.5
-ROBOT_INITIAL_FUEL = ROBOT_FUEL_PER_WOOD * 60 * 1.5
+ROBOT_INITIAL_FUEL = FUEL_LOSS_PER_SECOND * 60
 MAX_FUEL_FOR_NEEDINESS = FUEL_LOSS_PER_SECOND * 30
 MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY = FUEL_LOSS_PER_SECOND * 4
 MIN_FUEL_FOR_MAX_GUAGE_FLICKER = MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY + FUEL_LOSS_PER_SECOND * 6
@@ -2334,7 +2333,7 @@ blockConfigs = {
 			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
 		end,
 	},
-	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 1 },		-- TODO!!!
+	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 8 },
 	source_gold_ore = { name = 'Gold Ore', harvestSource = 'gold_ore', harvestRate = 60 }, 
 	source_copper = { name = 'Copper', harvestSource = 'copper', harvestRate = 20 }, 
 	source_stone = { name = 'Stone', harvestSource = 'stone', harvestRate = 12 }, 
@@ -2805,16 +2804,12 @@ function drawHUDBlockInfo()
 	local x = worldToTile( player.pos.x )
 	local y = worldToTile( player.pos.y )
 
-	local displayingForBlock = false
-
-	withBlockTypeAt( x, y, function( blockType, blockTypeIndex )
-		withBaseBlockType( blockTypeIndex, function( blockTypeBase, baseBlockTypeIndex )
+	return withBlockTypeAt( x, y, function( blockType, blockTypeIndex )
+		return withBaseBlockType( blockTypeIndex, function( blockTypeBase, baseBlockTypeIndex )
 			local textX = 6
 			local textY = 6
 			local name = blockTypeBase.name
 			if name ~= nil and name ~= '' then
-				displayingForBlock = true
-
 				name = name .. ( blockTypeBase.harvestSource ~= nil and ' - use Harvester' or '' )
 				printShadowed( name or '', textX, textY, BRIGHT_RED )
 				textY = textY + 10
@@ -2838,11 +2833,13 @@ function drawHUDBlockInfo()
 					displayingForBlock = true
 					blockTypeBase.draw()
 				end
+
+				return blockTypeBase
+			else
+				return nil
 			end
 		end)
 	end)
-
-	return displayingForBlock
 end
 
 function printRightAligned( text, x, y, color, printFn )
@@ -2893,9 +2890,12 @@ function drawHUD()
 
 	drawHUDFuelGuage()
 
-	local showingBlockInfo = drawHUDBlockInfo()
+	local drawnBlockType = drawHUDBlockInfo()
 
-	if not showingBlockInfo then
+	if drawnBlockType == nil 
+		or (     drawnBlockType == blockConfigs.robot_base_off 
+			  or drawnBlockType == blockConfigs.robot_base_on ) then
+
 		drawHUDQuest()
 	end
 
