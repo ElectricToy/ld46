@@ -940,15 +940,16 @@ function onResourcesCollide( a, b )
 	end
 end
 
-ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 10
+ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 11
 FUEL_LOSS_PER_TICK = 1
 FUEL_LOSS_PER_SECOND = FUEL_LOSS_PER_TICK * 60
 ROBOT_FUEL_PER_WOOD = FUEL_LOSS_PER_SECOND * ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS
 ROBOT_MAX_FUEL = ROBOT_FUEL_PER_WOOD * 9
 ROBOT_INITIAL_FUEL = FUEL_LOSS_PER_SECOND * 60 * 1.5
+ROBOT_INITIAL_FUEL = ROBOT_FUEL_PER_WOOD * 60 * 1.5
 MAX_FUEL_FOR_NEEDINESS = FUEL_LOSS_PER_SECOND * 30
 MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY = FUEL_LOSS_PER_SECOND * 4
-MIN_FUEL_FOR_MAX_GUAGE_FLICKER = MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY + FUEL_LOSS_PER_SECOND * 10
+MIN_FUEL_FOR_MAX_GUAGE_FLICKER = MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY + FUEL_LOSS_PER_SECOND * 6
 
 function onRobotOutOfFuel( actor )
 	if not worldState.gameLost then
@@ -2067,13 +2068,6 @@ end
 
 function robotOnCompletedRecipe()
 
-	sfx( 'eat_wood' )
-
-	-- reportIfNil( 'blockConfigs', blockConfigs )
-	-- reportIfNil( 'robot_base_off', blockConfigs.robot_base_off )
-	-- reportIfNil( 'blockConfigs', blockConfigs.robot_base_off.recipes )
-	-- reportIfNil( '2', blockConfigs.robot_base_off.recipes[ 2 ] )
-
 	local recipes = blockConfigs.robot_base_off.recipes
 
 	assert( robot.recipeSequence ~= nil )
@@ -2098,6 +2092,8 @@ function robotOnWood( x, y, blockType, blockTypeIndex )
 	guage.flashBrightness = 1
 	robot.additiveColor = 0xFFFFFF00
 
+	sfx( 'eat_wood' )
+
 	if robot.recipeSequence == nil or robot.recipeSequence == 1 then
 		robot.recipeSequence = 1
 		robotOnCompletedRecipe()
@@ -2106,18 +2102,22 @@ end
 function robotOnIron( x, y, blockType, blockTypeIndex )
 	-- trace( 'robotOnIron' )
 	robotOnCompletedRecipe()
+	sfx( 'finish_robot_recipe' )
 end
 function robotOnConveyor( x, y, blockType, blockTypeIndex )
 	-- trace( 'robotOnConveyor' )
 	robotOnCompletedRecipe()
+	sfx( 'finish_robot_recipe' )
 end
 function robotOnSensor( x, y, blockType, blockTypeIndex )
 	-- trace( 'robotOnSensor' )
 	robotOnCompletedRecipe()
+	sfx( 'finish_robot_recipe' )
 end
 function robotOnChip( x, y, blockType, blockTypeIndex )
 	-- trace( 'robotOnChip' )
 	robotOnCompletedRecipe()
+	sfx( 'finish_robot_recipe' )
 end
 
 ROBOT_NAME = '@73N'
@@ -2180,6 +2180,9 @@ function dataForBlockAt( x, y )
 	if blockData[ index ] == nil then blockData[ index ] = {} end
 	return blockData[ index ]
 end
+
+DEFAULT_TREE_CAPACITY = 60 * 10
+TREE_CAPACITY_LOSS_PER_TICK = 1 / 60
 
 CONVEYOR_EXPLANATION = { 'When placing, direction', "depends on", "which way you're moving." }
 SENSOR_EXPLANATION = { 'Detects items.', 'Triggers Conveyors.' }
@@ -2484,13 +2487,13 @@ function updateBlocks()
 end
 
 function speechSound()
-	sfx( 'speech' .. math.floor( randInt( 1, 4 )), 0.2 )
+	sfx( 'speech' .. math.floor( randInt( 2, 4 )), 0.75 )
 end
 
 function onRobotFound()
 	if not worldState.robotFound then
 		worldState.robotDialoguing = true
-		sfx( 'speech3' )
+		sfx( 'speech3', 0.75 )
 	end
 end
 
@@ -2760,36 +2763,44 @@ function drawHUDBlockInfo()
 	local x = worldToTile( player.pos.x )
 	local y = worldToTile( player.pos.y )
 
+	local displayingForBlock = false
+
 	withBlockTypeAt( x, y, function( blockType, blockTypeIndex )
 		withBaseBlockType( blockTypeIndex, function( blockTypeBase, baseBlockTypeIndex )
 			local textX = 6
 			local textY = 6
 			local name = blockTypeBase.name
-			if name ~= nil then
+			if name ~= nil and name ~= '' then
+				displayingForBlock = true
+
 				name = name .. ( blockTypeBase.harvestSource ~= nil and ' - use Harvester' or '' )
 				printShadowed( name or '', textX, textY, BRIGHT_RED )
 				textY = textY + 10
-			end
 
-			if type( blockTypeBase.explanation ) == 'table' then
-				for _, text in ipairs( blockTypeBase.explanation ) do					
-					printShadowed( text, textX, textY, 0xFFB0B8BF )
+				if type( blockTypeBase.explanation ) == 'table' then
+					for _, text in ipairs( blockTypeBase.explanation ) do					
+						printShadowed( text, textX, textY, 0xFFB0B8BF )
+						textY = textY + 10
+					end
+				else
+					print( blockTypeBase.explanation or '', textX, textY, 0xFFB0B8BF )
 					textY = textY + 10
 				end
-			else
-				print( blockTypeBase.explanation or '', textX, textY, 0xFFB0B8BF )
-				textY = textY + 10
-			end
 
-			if blockTypeBase.drawRecipes ~= false and blockTypeBase.recipes ~= nil then
-				drawBlockRecipes( blockTypeBase )
-			end
+				if blockTypeBase.drawRecipes ~= false and blockTypeBase.recipes ~= nil then
+					displayingForBlock = true
+					drawBlockRecipes( blockTypeBase )
+				end
 
-			if blockTypeBase.draw ~= nil then
-				blockTypeBase.draw()
+				if blockTypeBase.draw ~= nil then
+					displayingForBlock = true
+					blockTypeBase.draw()
+				end
 			end
 		end)
 	end)
+
+	return displayingForBlock
 end
 
 function printRightAligned( text, x, y, color, printFn )
@@ -2840,9 +2851,12 @@ function drawHUD()
 
 	drawHUDFuelGuage()
 
-	drawHUDQuest()
+	local showingBlockInfo = drawHUDBlockInfo()
 
-	drawHUDBlockInfo()
+	if not showingBlockInfo then
+		drawHUDQuest()
+	end
+
 end
 
 function drawPlayAgain( x )
