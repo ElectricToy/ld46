@@ -314,7 +314,7 @@ local debugMessages = {}
 
 function drawDebugCircles()
 	for _, circle in ipairs( debugCircles ) do
-		circ( circle[1].x, circle[1].y, 32 )	-- TODO!!!
+		circ( circle[1].x, circle[1].y, 32 )
 	end
 
 	debugCircles = {}
@@ -649,13 +649,14 @@ function findPickupActorNear( forActor, x, y, radius )
 end
 
 function makeHeld( item )
+	item.wasEverHeld = true
 	item.held = true
-	item.lastPlayerPlacedPos = nil
 	item.inert = true
 	item.nonColliding = true
 	item.z = 0
 	item.vel = vec2:new( 0, 0)
 	item.lastPos = vec2:new( x, y )
+	item.lastPlayerPlacedPos = nil
 	item.vel = vec2:new( 0, 0 )
 	item.thrust = vec2:new( 0, 0 )
 	item.heading = vec2:new( -1, 0 )
@@ -685,7 +686,7 @@ function tryPickupActor( byActor )
 		local pickupActor = findPickupActorNear( byAcor, point.x, point.y, 12 )
 		if pickupActor == byActor or pickupActor == nil then return nil end
 
-		if byActor.heldItem == nil or canCombine( pickupActor, byActor.heldItem ) then
+		if byActor.heldItem == nil or canCombineForHolding( pickupActor, byActor.heldItem ) then
 			sfx( 'lift' )
 			worldState.pickedUp = true
 
@@ -720,7 +721,7 @@ function tryPickupBlock( byActor )
 			local blockIndex = mget( blockX, blockY )
 			local pickupActor = createActorForBlockIndex( blockIndex, creationPos.x, creationPos.y )
 
-			if pickupActor and ( byActor.heldItem == nil or canCombine( pickupActor, byActor.heldItem )) then
+			if pickupActor and ( byActor.heldItem == nil or canCombineForHolding( pickupActor, byActor.heldItem )) then
 
 				createActor( 'pickup_particles', blockX * PIXELS_PER_TILE + 8, blockY * PIXELS_PER_TILE + 16 )
 				sfx( 'lift' )
@@ -907,18 +908,34 @@ function updatePlayer( actor )
 	end
 end
 
-function canCombine( a, b )
+-- Two items may always combine (assuming they're the right types), if neither of them has ever been picked up.
+-- If at least one of them has been picked up at any point, then they have to also fit under the 9-item limit.
+-- This basically allows harvesters to produce "destructively" combining items, but once a player gets
+-- involved they don't destructively combine anymore.
+
+function canCombineBecauseCorrectTypes( a, b )
 	assert( a and b )
 	return a.configKey == b.configKey
-		   and ( a.count or 1 ) + ( b.count or 1 ) <= RESOURCE_MAX_COUNT_DEFAULT
 		   and a.config.mayCombine
-		   and b.config.mayCombine 
+		   and b.config.mayCombine
+end
+
+function canCombineBecauseUnderLimit( a, b )
+	return ( a.count or 1 ) + ( b.count or 1 ) <= RESOURCE_MAX_COUNT_DEFAULT
 end
 
 function canCombineOnGround( a, b )
 	assert( a and b )
-	return canCombine( a, b ) and
-		   not a.held and not b.held
+	return not a.held and not b.held
+		   and canCombineBecauseCorrectTypes( a, b )
+		   and 
+				(canCombineBecauseUnderLimit( a, b )
+					or ( not hasBeenPlayerHeld( a ) and not hasBeenPlayerHeld( b ) ))
+end
+
+function canCombineForHolding( a,b )
+	return canCombineBecauseCorrectTypes( a, b )
+			and canCombineBecauseUnderLimit( a, b )
 end
 
 function combineResources( a, b )
@@ -927,6 +944,8 @@ function combineResources( a, b )
 	local total = ( a.count or 1 ) + ( b.count or 1 )
 
 	a.count = math.min( total, RESOURCE_MAX_COUNT_DEFAULT )
+	a.birthTicks = b.birthTicks
+	a.countAtLastProduceSound = b.countAtLastProduceSound
 
 	deleteActor( b )
 end
@@ -935,7 +954,7 @@ function onResourcesCollide( a, b )
 	if canCombineOnGround( a, b ) then
 		a.pos:set( b.pos )
 		a.lastPos:set( a.pos )
-		a.vel:set( 0 )	
+		a.vel:set( 0 )
 		combineResources( a, b )
 	end
 end
@@ -1053,6 +1072,7 @@ actorConfigurations = {
 		animations = {
 			idle = { speed = 0, frames = { 320 }},
 		},
+		capacity = 9 * 1,		-- TODO
 	},
 	tree_rubber = {
 		inert = true,
@@ -1303,6 +1323,7 @@ function createActor( configKey, x, y )
 	local actor = {
 		configKey = configKey,
 		config = config,
+		birthTicks = ticks,
 		birthdate = now(),
 		pos = vec2:new( x, y ),
 		lastPos = vec2:new( x, y ),
@@ -1565,6 +1586,7 @@ end
 
 actorDrawMargin = PIXELS_PER_TILE
 
+
 -- TIME
 
 ticks = 0
@@ -1732,6 +1754,10 @@ function actorCheckSurroundingTilesForNearbyActors( actor, radius )
 	end)
 end
 
+function hasBeenPlayerHeld( actor )
+	return actor.wasEverHeld or false
+end
+
 function actorHasMovedSincePlayerPlaced( actor )
 	return actor.lastPlayerPlacedPos == nil or not actor.pos:equals( actor.lastPlayerPlacedPos )
 end
@@ -1740,6 +1766,18 @@ function updateActor( actor )
 
 	if actor.additiveColor ~= nil then
 		actor.additiveColor = colorLerp( actor.additiveColor, 0, 0.08 )
+	end
+
+	-- we ask actors to produce their own "produce" sound after they've survived
+	-- a split second so that harvested actors that get "swallowed" by the actors they're combined with
+	-- don't make a sound.
+	if actor.produced 
+		and actorAgeTicks( actor ) > 2 
+		and 
+			( 	actor.countAtLastProduceSound == nil 
+				or ( actor.count or 1 ) > actor.countAtLastProduceSound ) then
+		sfx( 'produce', 0.35 )
+		actor.countAtLastProduceSound = actor.count or 1
 	end
 
 	if not actor.inert and ( actor.config.inert == nil or not actor.config.inert ) then
@@ -1924,7 +1962,8 @@ function blockCompleteRecipe( x, y, blockType, blockTypeIndex )
 	if recipe.output then
 		for key, count in pairs( recipe.output ) do
 			for i = 1, count do
-				createActor( key, creationPosition.x, creationPosition.y )
+				local actor = createActor( key, creationPosition.x, creationPosition.y )
+				actor.produced = true
 			end
 		end	
 	end
@@ -1932,8 +1971,6 @@ function blockCompleteRecipe( x, y, blockType, blockTypeIndex )
 	if recipe.effect then
 		recipe.effect( x, y, blockType, blockTypeIndex )
 	end
-
-	sfx( 'produce', 0.5 )
 end
 
 function blockUpdateCooking( x, y, blockType, blockTypeIndex )
@@ -1999,8 +2036,12 @@ function harvesterTick( x, y, blockType, blockTypeIndex )
 				local harvestRate = ( neighborBlockTypeBase.harvestRate or DEFAULT_HARVEST_RATE ) * 60
 				if ( ticks + 1 ) % harvestRate == 0 then
 					local creationPosition = creationPositionFromBlockAt( x, y )
-					createActor( neighborBlockTypeBase.harvestSource, creationPosition.x, creationPosition.y )
-					sfx( 'produce', 0.5 )
+					local producedActor = createActor( neighborBlockTypeBase.harvestSource, creationPosition.x, creationPosition.y )
+					producedActor.produced = true
+
+					if neighborBlockTypeBase.onHarvested ~= nil then
+						neighborBlockTypeBase.onHarvested()
+					end
 				end
 			end
 		end)
@@ -2181,9 +2222,6 @@ function dataForBlockAt( x, y )
 	return blockData[ index ]
 end
 
-DEFAULT_TREE_CAPACITY = 60 * 10
-TREE_CAPACITY_LOSS_PER_TICK = 1 / 60
-
 CONVEYOR_EXPLANATION = { 'When placing, direction', "depends on", "which way you're moving." }
 SENSOR_EXPLANATION = { 'Detects items.', 'Triggers Conveyors.' }
 HARVESTER_EXPLANATION = 'Gathers resources.'
@@ -2296,7 +2334,7 @@ blockConfigs = {
 			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
 		end,
 	},
-	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 12 },
+	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 1 },		-- TODO!!!
 	source_gold_ore = { name = 'Gold Ore', harvestSource = 'gold_ore', harvestRate = 60 }, 
 	source_copper = { name = 'Copper', harvestSource = 'copper', harvestRate = 20 }, 
 	source_stone = { name = 'Stone', harvestSource = 'stone', harvestRate = 12 }, 
@@ -2626,6 +2664,10 @@ function actorCountAdd( actor, amount )
 	end
 
 	-- count established.
+end
+
+function actorAgeTicks( actor )
+	return ticks - actor.birthTicks
 end
 
 function actorDrawBounds()
