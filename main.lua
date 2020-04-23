@@ -15,11 +15,19 @@ BRIGHT_RED = 0xFFC23324
 LIGHT_GRAY = 0xFFB0B8BF
 
 
+-- GLOBALS
+
+GLOBAL_DRAG = 0.175
+RESOURCE_MAX_COUNT_DEFAULT = 9
+
+
 MIN_ACTIVE_BLOCK_INDEX = 256
 
 SPRITE_SHEET_PIXELS_X = 512
 PIXELS_PER_TILE = 16
 TILES_X = SPRITE_SHEET_PIXELS_X // PIXELS_PER_TILE
+
+ACTOR_DRAW_MARGIN = PIXELS_PER_TILE
 
 sprite_size( PIXELS_PER_TILE )
 
@@ -633,11 +641,11 @@ function forEachActorNear( x, y, radius, callback )
 	end
 end
 
-function findPickupActorNear( forActor, x, y, radius )
+function closestActorTo( x, y, radius, filterFn )
 	local nearestActor = nil
 	local nearestDistSquared = nil
 	forEachActorNear( x, y, radius, function( actor, distSquared )
-		if actor.held or not actor.config.mayBePickedUp or actor == forActor then return end
+		if not filterFn( actor, distSquared ) then return end
 		
 		if nearestDistSquared == nil or distSquared < nearestDistSquared then
 			nearestDistSquared = distSquared
@@ -646,6 +654,12 @@ function findPickupActorNear( forActor, x, y, radius )
 	end)
 
 	return nearestActor
+end
+
+function findPickupActorNear( forActor, x, y, radius )
+	return closestActorTo( x, y, radius, function( actor, distSquared )
+		return not actor.held and actor.config.mayBePickedUp and actor ~= forActor
+	end)
 end
 
 function makeHeld( item )
@@ -893,8 +907,6 @@ function drawShadow( actor )
 	fillp( 0 )
 end
 
-GLOBAL_DRAG = 0.175
-
 function updateHeldItem( holder, item )
 	item.pos = lerp( item.pos, holder.pos + vec2:new( 0, 1 + math.sin( ticks * 0.06 ) * 1.5 ), 0.08 )
 	item.lastPos:set( item.pos )
@@ -959,6 +971,15 @@ function onResourcesCollide( a, b )
 	end
 end
 
+function wouldNewItemBeSwallowedNear( position, newActorType )
+	local actorThere = closestActorTo( position.x, position.y, 2, function( actor )
+		return not actor.held and actor.configKey == newActorType
+	end)
+	
+	return actorThere ~= nil and ((( actorThere.count or 1 ) >= RESOURCE_MAX_COUNT_DEFAULT ) 
+			  and actorThere.pos:equals( position ))
+end
+
 ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS = 10
 FUEL_LOSS_PER_TICK = 1
 FUEL_LOSS_PER_SECOND = FUEL_LOSS_PER_TICK * 60
@@ -1013,8 +1034,6 @@ function robotTick( actor )
 	end
 end
 
-
-RESOURCE_MAX_COUNT_DEFAULT = 9
 
 actorConfigurations = {
 	player = {
@@ -1581,11 +1600,6 @@ function drawActor( actor )
 	drawActorCount( actor )
 end
 
--- GLOBALS
-
-actorDrawMargin = PIXELS_PER_TILE
-
-
 -- TIME
 
 ticks = 0
@@ -2026,22 +2040,57 @@ end
 
 local DEFAULT_HARVEST_RATE = 5
 
+function onBlockRanOutOfCapacity( x, y, blockType, blockTypeIndex )
+	sfx( 'source_exhausted', 0.25 )
+	mset( x, y, 486 )
+	if dataForBlockAt( x, y ).sponsoredActor ~= nil then
+		deleteActor( dataForBlockAt( x, y ).sponsoredActor )
+	end
+end
+
+function blockIsHarvestable( x, y, blockType, blockTypeIndex )
+	if blockType.harvestSource == nil then return false end
+
+	local capacity = dataForBlockAt( x, y ).capacity
+
+	return capacity == nil or capacity > 0
+end
+
+function drainBlockCapacity( x, y, blockType, blockTypeIndex )
+	if dataForBlockAt( x, y - 1 ).capacity == nil then return end	-- nil is infinite capacity
+
+	dataForBlockAt( x, y - 1 ).capacity = dataForBlockAt( x, y - 1 ).capacity - 1
+
+	if dataForBlockAt( x, y - 1 ).capacity == 0 then
+		onBlockRanOutOfCapacity( x, y - 1, blockType, blockTypeIndex )
+	end
+end
+
+function harvesterDoHarvest( harvestSource, x, y, blockType, blockTypeIndex, neighborBlockTypeBase, neighborBaseBlockTypeIndex)
+
+	drainBlockCapacity( x, y - 1, neighborBlockTypeBase, neighborBaseBlockTypeIndex )
+
+	local creationPosition = creationPositionFromBlockAt( x, y )
+
+	local producedActor = createActor( harvestSource, creationPosition.x, creationPosition.y )
+	producedActor.produced = true	-- TODO!!! streamline this craziness
+end
+
 function harvesterTick( x, y, blockType, blockTypeIndex )
 	-- get the block just north.
-
 	withBlockTypeAt( x, y - 1, function( neighborBlockType, neighborBlockTypeIndex )
 		withBaseBlockType( neighborBlockTypeIndex, function( neighborBlockTypeBase, neighborBaseBlockTypeIndex )
-			if neighborBlockTypeBase.harvestSource ~= nil then
-				local harvestRate = ( neighborBlockTypeBase.harvestRate or DEFAULT_HARVEST_RATE ) * 60
-				if ( ticks + 1 ) % harvestRate == 0 then
-					local creationPosition = creationPositionFromBlockAt( x, y )
-					local producedActor = createActor( neighborBlockTypeBase.harvestSource, creationPosition.x, creationPosition.y )
-					producedActor.produced = true
 
-					if neighborBlockTypeBase.onHarvested ~= nil then
-						neighborBlockTypeBase.onHarvested()
-					end
-				end
+			-- north neighbor is a harvestable block?
+			if not blockIsHarvestable( x, y - 1, neighborBlockTypeBase, neighborBaseBlockTypeIndex ) then return false end
+
+			-- would the produced actor simply be swallowed up by a group?
+			local creationPosition = creationPositionFromBlockAt( x, y )
+			if wouldNewItemBeSwallowedNear( creationPosition, harvestSource ) then return false end
+
+			local harvestRate = ( neighborBlockTypeBase.harvestRate or DEFAULT_HARVEST_RATE ) * 60
+			if ( ticks + 1 ) % harvestRate == 0 then
+				harvesterDoHarvest( neighborBlockTypeBase.harvestSource, x, y, blockType, blockTypeIndex, neighborBlockTypeBase, neighborBaseBlockTypeIndex)
 			end
 		end)
 	end)
@@ -2204,6 +2253,7 @@ function robotBaseClass()
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
 			if robot == nil then
 				robot = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE + 22, ( y + 1 ) * PIXELS_PER_TILE - 1 )
+				robot.baseBlockPos = vec2:new( x, y )
 				robot.fuel = ROBOT_INITIAL_FUEL
 			end
 		end,
@@ -2320,8 +2370,11 @@ blockConfigs = {
 		sponsoredActorConfig = 'tree',
 		harvestSource = 'wood',
 		harvestRate = 12,
+		defaultCapacity = 15,
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
-			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
+			local sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
+			sponsoredActor.baseBlockPos = vec2:new( x, y )
+			dataForBlockAt( x, y ).sponsoredActor = sponsoredActor
 		end,
 	},
 	rubber_tree_base = {
@@ -2330,10 +2383,12 @@ blockConfigs = {
 		harvestSource = 'rubber',
 		harvestRate = 15,
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
-			sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
+			local sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
+			sponsoredActor.baseBlockPos = vec2:new( x, y )
+			dataForBlockAt( x, y ).sponsoredActor = sponsoredActor
 		end,
 	},
-	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 8 },
+	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 1 },		-- TODO!!! 8
 	source_gold_ore = { name = 'Gold Ore', harvestSource = 'gold_ore', harvestRate = 60 }, 
 	source_copper = { name = 'Copper', harvestSource = 'copper', harvestRate = 20 }, 
 	source_stone = { name = 'Stone', harvestSource = 'stone', harvestRate = 12 }, 
@@ -2490,7 +2545,8 @@ function fixupBlocks()
 	forEachBlock( function( x, y, blockType, blockTypeIndex )
 		withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
 			if baseBlockType.onPlaced ~= nil then 
-				baseBlockType.onPlaced( x, y, blockType, blockTypeIndex ) 
+				baseBlockType.onPlaced( x, y, blockType, blockTypeIndex )
+				dataForBlockAt( x, y ).capacity = baseBlockType.defaultCapacity
 			end
 		end)
 	end )
@@ -2671,7 +2727,8 @@ end
 
 function actorDrawBounds()
 	local bounds = viewBounds()
-	expandContractRect( bounds, actorDrawMargin )
+	assert( ACTOR_DRAW_MARGIN )
+	expandContractRect( bounds, ACTOR_DRAW_MARGIN )
 	return bounds
 end
 
