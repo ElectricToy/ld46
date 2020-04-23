@@ -2198,7 +2198,7 @@ function robotBaseClass()
 				enabled = false,
 				inputs = { chip = 1 },
 				effect = robotOnChip,
-				duration = 1.5,
+				duration = 0.65,
 			},
 		},	
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
@@ -2264,22 +2264,22 @@ blockConfigs = {
 				duration = 0.5,
 			},
 			{
-				inputs = { iron = 6, gold = 4 },
+				inputs = { combiner = 1, copper = 4 },
 				output = { sensor = 1 },
 				duration = 0.5,
 			}, 
 			{
-				inputs = { stone = 3, wood = 2 },
+				inputs = { stone = 2, wood = 1 },
 				output = { oven = 1 },
 				duration = 0.5,
 			},
 			{
-				inputs = { oven = 1, copper = 3 },
+				inputs = { oven = 1, copper = 2 },
 				output = { combiner = 1 },
 				duration = 0.5,
 			},
 			{
-				inputs = { copper = 9, gold = 9 },
+				inputs = { combiner = 2, gold = 9 },
 				output = { chip = 1 },
 				duration = 0.5,
 			},
