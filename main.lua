@@ -522,17 +522,26 @@ function blockOnNeighborChanged( x, y, changedX, changedY )
 end
 
 function onBlockChangeNear( x, y )
-	blockOnNeighborChanged( x, y, x, y )
+	blockOnNeighborChanged( x, y, x, y )		-- self, actually
 	blockOnNeighborChanged( x, y - 1, x, y )
 end
 
-function setBlockType( x, y, blockTypeIndex )
+function setBlockTypeSimple( x, y, blockTypeIndex )
+	if blockTypeIndex == mget( x, y ) then return end
+
+	blockDeleteSponsored( x, y )
 	mset( x, y, blockTypeIndex )
+end
+
+function setBlockType( x, y, blockTypeIndex )
+	if blockTypeIndex == mget( x, y ) then return end
+	setBlockTypeSimple( x, y, blockTypeIndex )
 	onBlockChangeNear( x, y )
 end
 
 function clearBlock( x, y )
 	setBlockType( x, y, randomGroundBlockIndex() )
+	clearDataForBlockAt( x, y )
 end
 
 function createActorForBlockIndex( blockTypeIndex, x, y )
@@ -1322,14 +1331,14 @@ function deleteActor( actor )
 
 	if actor.deleted then return end
 
-	-- trace( 'deleting actor ' .. actor.configKey )
-
 	if actor.shadow ~= nil then
 		actor.shadow.shadowHost = nil
 		deleteActor( actor.shadow )
 	end
 
 	actor.deleted = true
+	-- trace( 'deleted actor ' .. actor.configKey )
+
 	tableRemoveValue( actors, actor )
 end
 
@@ -1903,7 +1912,7 @@ function conveyorOnPlaced( x, y, blockType, blockTypeIndex )
 	withBlockTypeAt( x, y + 1, function( southernBlockType, southernBlockTypeIndex )
 		withBaseBlockType( southernBlockTypeIndex, function( southernBlockTypeBase, southernBaseBlockTypeIndex )
 			local desiredIndex = blockAbuttingSouthVersion( blockTypeIndex, southernBlockTypeBase and southernBlockTypeBase.conveyor ~= nil )
-			mset( x, y, desiredIndex )
+			setBlockTypeSimple( x, y, desiredIndex )
 		end)
 	end)
 end
@@ -2033,11 +2042,7 @@ function onBlockRanOutOfCapacity( x, y, blockType, blockTypeIndex )
 	color_multiplied_g_smoothed = 0.75
 	color_multiplied_b_smoothed = 0.5
 
-	
-	mset( x, y, 486 )
-	if dataForBlockAt( x, y ).sponsoredActor ~= nil then
-		deleteActor( dataForBlockAt( x, y ).sponsoredActor )
-	end
+	setBlockType( x, y, 486 )
 end
 
 function blockIsHarvestable( x, y, blockType, blockTypeIndex )
@@ -2070,11 +2075,13 @@ end
 
 function harvesterTick( x, y, blockType, blockTypeIndex )
 	-- get the block just north.
-	withBlockTypeAt( x, y - 1, function( neighborBlockType, neighborBlockTypeIndex )
-		withBaseBlockType( neighborBlockTypeIndex, function( neighborBlockTypeBase, neighborBaseBlockTypeIndex )
+	local canHarvest = withBlockTypeAt( x, y - 1, function( neighborBlockType, neighborBlockTypeIndex )
+		return withBaseBlockType( neighborBlockTypeIndex, function( neighborBlockTypeBase, neighborBaseBlockTypeIndex )
 
 			-- north neighbor is a harvestable block?
-			if not blockIsHarvestable( x, y - 1, neighborBlockTypeBase, neighborBaseBlockTypeIndex ) then return false end
+			if not blockIsHarvestable( x, y - 1, neighborBlockTypeBase, neighborBaseBlockTypeIndex ) then 
+				return false 
+			end
 
 			-- would the produced actor simply be swallowed up by a group?
 			local creationPosition = creationPositionFromBlockAt( x, y )
@@ -2086,8 +2093,11 @@ function harvesterTick( x, y, blockType, blockTypeIndex )
 			if ( ticks + 1 ) % harvestRate == 0 then
 				harvesterDoHarvest( neighborBlockTypeBase.harvestSource, x, y, blockType, blockTypeIndex, neighborBlockTypeBase, neighborBaseBlockTypeIndex)
 			end
+			return true
 		end)
 	end)
+
+	dataForBlockAt( x, y ).animated = canHarvest or false
 end
 
 function conveyorRotatedVersion( fromBlockTypeIndex, turnsClockwise )
@@ -2103,7 +2113,7 @@ end
 
 function onConveyorTriggered( x, y, blockType, blockTypeIndex, turningOn )
 	if dataForBlockAt( x, y ).triggeredOn ~= turningOn then
-		mset( x, y, conveyorRotatedVersion( blockTypeIndex, turningOn and 1 or -1 ))
+		setBlockTypeSimple( x, y, conveyorRotatedVersion( blockTypeIndex, turningOn and 1 or -1 ))
 	end
 end
 
@@ -2133,7 +2143,7 @@ function sensorTick( x, y, blockType, blockTypeIndex, triggerIfSensed, toTypeIfT
 
 	if triggerIfSensed == ( sensedActor ~= nil ) then
 		sensorChanged( x, y, blockType, blockTypeIndex, triggerIfSensed )
-		mset( x, y, toTypeIfTriggered )
+		setBlockTypeSimple( x, y, toTypeIfTriggered )
 	end
 end
 
@@ -2265,6 +2275,29 @@ function dataForBlockAt( x, y )
 	return blockData[ index ]
 end
 
+function clearDataForBlockAt( x, y )
+	local index = worldTilePosToIndex( x, y )
+	blockData[ index ] = {}
+end
+
+function blockCreateSponsored( x, y, blockType, blockTypeIndex )
+	if dataForBlockAt( x, y ).sponsoredActor ~= nil then return dataForBlockAt( x, y ).sponsoredActor end
+
+	-- trace( 'create sponsored ' ..  blockType.sponsoredActorConfig .. ' ' .. x .. ' ' .. y )
+	local sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
+	sponsoredActor.baseBlockPos = vec2:new( x, y )
+	dataForBlockAt( x, y ).sponsoredActor = sponsoredActor
+	return sponsoredActor
+end
+
+function blockDeleteSponsored( x, y )
+	local sponsoredActor = dataForBlockAt( x, y ).sponsoredActor
+	if sponsoredActor ~= nil then
+		trace( 'delete sponsored actor ' .. sponsoredActor.configKey )
+		deleteActor( sponsoredActor )
+	end
+end
+
 CONVEYOR_EXPLANATION = { 'When placing, direction', "depends on", "which way you're moving." }
 SENSOR_EXPLANATION = { 'Detects items.', 'Triggers Conveyors.' }
 HARVESTER_EXPLANATION = 'Gathers resources.'
@@ -2288,7 +2321,6 @@ blockConfigs = {
 		name = 'Harvester',
 		explanation = HARVESTER_EXPLANATION,
 		actorConfigName = 'harvester',
-		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
 		tick = harvesterTick,
 	},
 	combiner_off = {
@@ -2328,7 +2360,6 @@ blockConfigs = {
 				duration = 0.5,
 			},
 		},
-		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
 		tick = function( x, y, blockType, blockTypeIndex )
 			if worldState.robotFound then
 				blockCheckRecipes( x, y, blockType, blockTypeIndex )
@@ -2340,7 +2371,6 @@ blockConfigs = {
 		explanation = COMBINER_EXPLANATION,
 		actorConfigName = 'combiner',
 		off_version = 515,
-		onPlaced = function( x, y, blockType, blockTypeIndex ) end,
 		tick = function( x, y, blockType, blockTypeIndex )
 			blockUpdateCooking( x, y, blockType, blockTypeIndex )
 		end,
@@ -2365,10 +2395,8 @@ blockConfigs = {
 		harvestSource = 'wood',
 		harvestRate = 1,		-- TODO!!! 12
 		defaultCapacity = 15,
-		onPlaced = function( x, y, blockType, blockTypeIndex ) 
-			local sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
-			sponsoredActor.baseBlockPos = vec2:new( x, y )
-			dataForBlockAt( x, y ).sponsoredActor = sponsoredActor
+		onPlaced = function( x, y, blockType, blockTypeIndex )
+			blockCreateSponsored( x, y, blockType, blockTypeIndex )
 		end,
 	},
 	rubber_tree_base = {
@@ -2377,9 +2405,7 @@ blockConfigs = {
 		harvestSource = 'rubber',
 		harvestRate = 15,
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
-			local sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
-			sponsoredActor.baseBlockPos = vec2:new( x, y )
-			dataForBlockAt( x, y ).sponsoredActor = sponsoredActor
+			blockCreateSponsored( x, y, blockType, blockTypeIndex )
 		end,
 	},
 	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 8 },
@@ -2492,6 +2518,8 @@ function withBaseBlockType( blockTypeIndex, callback )
 	local baseType = blockTypeForIndex( baseTypeIndex )
 	if baseType ~= nil then
 		return callback( baseType, baseTypeIndex )
+	else
+		return nil
 	end
 end
 
@@ -2552,13 +2580,17 @@ function updateBlock( x, y, blockType, blockTypeIndex )
 
 	withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
 		local animSet = blockType.animSet
-		if animSet then
+
+		local animated = dataForBlockAt( x, y ).animated
+		if animated == nil then animated = true end
+
+		if animSet and animated then
 			local changeSpeed = animSet.speed or 4
 			local frame = math.floor( ticks // changeSpeed )
 
 			local block = animSet.frames[ 1 + frame % #animSet.frames ]
 
-			mset( x, y, block )
+			setBlockTypeSimple( x, y, block )
 		end
 
 		if baseBlockType.tick then
@@ -2734,6 +2766,8 @@ function drawActors()
 
 	for _, actor in ipairs( actors ) do
 		if rectsOverlap( bounds, actorVisualBounds( actor ) ) then
+			assert( not actor.deleted )
+
 			table.insert( drawnActors, actor )
 		end
 	end
