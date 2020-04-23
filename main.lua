@@ -1013,7 +1013,8 @@ function onRobotCompletedAllRecipes()
 	if not worldState.gameWon then
 		worldState.gameWon = true
 		worldState.gameOverStartTime = realTicks
-		sfx( 'win' )
+		sfx( 'win', 0.75 )
+		music( '' )
 	end
 end
 
@@ -2086,6 +2087,10 @@ function harvesterDoHarvest( harvestSource, x, y, blockType, blockTypeIndex, nei
 	sfx( 'produce', 0.5 )
 end
 
+function harvestRateToPctChance( rate )
+	return ( rate / 60 ) * 100
+end
+
 function harvesterTick( x, y, blockType, blockTypeIndex )
 	-- get the block just north.
 	local canHarvest = withBlockTypeAt( x, y - 1, function( neighborBlockType, neighborBlockTypeIndex )
@@ -2102,8 +2107,9 @@ function harvesterTick( x, y, blockType, blockTypeIndex )
 				return false 
 			end
 
-			local harvestRate = ( neighborBlockTypeBase.harvestRate or DEFAULT_HARVEST_RATE ) * 60
-			if ( ticks + 1 ) % harvestRate == 0 then
+			local harvestRate = ( neighborBlockTypeBase.harvestRate or DEFAULT_HARVEST_RATE )
+			local harvestChancePerTick = harvestRateToPctChance( harvestRate )
+			if pctChance( harvestChancePerTick ) then
 				harvesterDoHarvest( neighborBlockTypeBase.harvestSource, x, y, blockType, blockTypeIndex, neighborBlockTypeBase, neighborBaseBlockTypeIndex)
 			end
 			return true
@@ -2405,7 +2411,7 @@ blockConfigs = {
 		name = 'Tree',
 		sponsoredActorConfig = 'tree',
 		harvestSource = 'wood',
-		harvestRate = 1,		-- TODO!!! 12
+		harvestRate = 12,
 		defaultCapacity = 15,
 		onPlaced = function( x, y, blockType, blockTypeIndex )
 			blockCreateSponsored( x, y, blockType, blockTypeIndex )
@@ -2662,6 +2668,11 @@ function pressToRestart()
 end
 
 function updateGameWon()
+	barrel_ = 0.7
+	color_multiplied_r = 1
+	color_multiplied_g = 1
+	color_multiplied_b = 0
+	bloom_intensity_ = 0.8
 	pressToRestart()
 end
 
