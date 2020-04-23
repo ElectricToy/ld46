@@ -1042,6 +1042,19 @@ function robotTick( actor )
 	end
 end
 
+function playerFootstepFrames( start )
+	local frames = {}
+	for i = 1, 7 do
+		frames[ i ] = { 
+			frame = start + i,
+			event = ( i == 1 or i == 5 ) and function( actor )
+				sfx( 'footstep' .. randInt( 1, 3 ), 0.25 )
+			end
+				or nil
+		}
+	end
+	return frames
+end
 
 actorConfigurations = {
 	player = {
@@ -1052,11 +1065,11 @@ actorConfigurations = {
 		tileSizeY = 1,
 		animations = {
 			idle_south = { speed = 0, frames = { 1 }},
-			run_south =  { speed = 0.4, frames = range( 2, 2 + 7 )},
+			run_south =  { speed = 0.4, frames = playerFootstepFrames( 2 )},
 			idle_north = { speed = 0, frames = { 33 }},
-			run_north =  { speed = 0.4, frames = range( 34, 34 + 7 )},
+			run_north =  { speed = 0.4, frames = playerFootstepFrames( 34 )},
 			idle_side = { speed = 0, frames = { 65 }},
-			run_side = { speed = 0.4, frames = range( 66, 66 + 7 ) },
+			run_side = { speed = 0.4, frames = playerFootstepFrames( 66 ) },
 		},
 		amendAnimName = function( self, animName )
 			if self.heading:majorAxis() == 0 then return animName .. '_side' end
@@ -2293,7 +2306,6 @@ end
 function blockDeleteSponsored( x, y )
 	local sponsoredActor = dataForBlockAt( x, y ).sponsoredActor
 	if sponsoredActor ~= nil then
-		trace( 'delete sponsored actor ' .. sponsoredActor.configKey )
 		deleteActor( sponsoredActor )
 	end
 end
