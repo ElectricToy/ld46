@@ -387,11 +387,7 @@ end
 
 function round( x, divisor )
 	divisor = divisor or 1
-	return x // divisor * divisor
-end
-
-function quantize( x )
-	return round( x + 4, PIXELS_PER_TILE )
+	return ( x + 0.5 ) // divisor * divisor
 end
 
 function sheet_pixels_to_sprite( x, y )
@@ -1110,9 +1106,20 @@ actorConfigurations = {
 		tileSizeX = 2,
 		tileSizeY = 4,
 		animations = {
-			idle = { speed = 0, frames = { 320 }},
+			idle_3 = { speed = 0, frames = { 544 }},
+			idle_2 = { speed = 0, frames = { 546 }},
+			idle_1 = { speed = 0, frames = { 548 }},
+			idle_0 = { speed = 0, frames = { 548 }},
 		},
-		capacity = 9 * 1,		-- TODO
+		onCapacityChange = function( actor, x, y, capacity )
+			actor.capacity = capacity
+		end,
+		amendAnimName = function( self, animName )
+			local proportionalCapacity = clamp( proportion( self.capacity, 0, blockConfigs.tree_base.defaultCapacity ), 0, 1 )
+			local fullness = math.floor( round( lerp( 0, 3, proportionalCapacity )))
+
+			return animName .. '_' .. fullness
+		end,
 	},
 	tree_rubber = {
 		inert = true,
@@ -1572,7 +1579,7 @@ function actorULOffset( actor )
 end
 
 function drawCount( count, x, y )
-	printShadowed( '' .. count, round( x ), round( y ), LIGHT_GRAY )
+	printShadowed( '' .. count, math.floor( x ), math.floor( y ), LIGHT_GRAY )
 end
 
 function drawActorCount( actor )
@@ -1607,8 +1614,8 @@ function drawActor( actor )
 	local ulOffset = actorULOffset( actor )
 
 	spr( sprite, 
-		round( actor.pos.x - ulOffset.x ), 
-		round( actor.pos.y - ulOffset.y ), 
+		math.floor( actor.pos.x - ulOffset.x ), 
+		math.floor( actor.pos.y - ulOffset.y ), 
 		actor.config.tileSizeX, 
 		actor.config.tileSizeY, 
 		flipX,
@@ -2055,6 +2062,7 @@ function onBlockRanOutOfCapacity( x, y, blockType, blockTypeIndex )
 	color_multiplied_r_smoothed = 0.5
 	color_multiplied_g_smoothed = 0.75
 	color_multiplied_b_smoothed = 0.5
+	barrel_smoothed = 0.3
 
 	setBlockType( x, y, 486 )
 end
@@ -2067,10 +2075,18 @@ function blockIsHarvestable( x, y, blockType, blockTypeIndex )
 	return capacity == nil or capacity > 0
 end
 
-function drainBlockCapacity( x, y, blockType, blockTypeIndex )
+function blockSetCapacity( x, y, capacity )
+	dataForBlockAt( x, y ).capacity = capacity
+
+	if dataForBlockAt( x, y ).sponsoredActor ~= nil and dataForBlockAt( x, y ).sponsoredActor.config.onCapacityChange then
+		dataForBlockAt( x, y ).sponsoredActor.config.onCapacityChange( dataForBlockAt( x, y ).sponsoredActor, x, y, capacity )
+	end
+end
+
+function blockDrainCapacity( x, y, blockType, blockTypeIndex )
 	if dataForBlockAt( x, y ).capacity == nil then return end	-- nil is infinite capacity
 
-	dataForBlockAt( x, y ).capacity = dataForBlockAt( x, y ).capacity - 1
+	blockSetCapacity( x, y, dataForBlockAt( x, y ).capacity - 1 ) 
 
 	if dataForBlockAt( x, y ).capacity == 0 then
 		onBlockRanOutOfCapacity( x, y, blockType, blockTypeIndex )
@@ -2079,7 +2095,7 @@ end
 
 function harvesterDoHarvest( harvestSource, x, y, blockType, blockTypeIndex, neighborBlockTypeBase, neighborBaseBlockTypeIndex)
 
-	drainBlockCapacity( x, y - 1, neighborBlockTypeBase, neighborBaseBlockTypeIndex )
+	blockDrainCapacity( x, y - 1, neighborBlockTypeBase, neighborBaseBlockTypeIndex )
 
 	local creationPosition = creationPositionFromBlockAt( x, y )
 
@@ -2088,7 +2104,7 @@ function harvesterDoHarvest( harvestSource, x, y, blockType, blockTypeIndex, nei
 end
 
 function harvestRateToPctChance( rate )
-	return ( rate / 60 ) * 100
+	return (( 1/ rate ) / 60 ) * 100
 end
 
 function harvesterTick( x, y, blockType, blockTypeIndex )
@@ -2184,6 +2200,11 @@ function robotOnCompletedRecipe()
 
 	assert( robot.recipeSequence ~= nil )
 	assert( recipes[ robot.recipeSequence ] ~= nil )
+
+	color_multiplied_r_smoothed = 1
+	color_multiplied_g_smoothed = 1
+	color_multiplied_b_smoothed = 0
+	barrel_smoothed = 0.5
 	
 	if robot.recipeSequence > 1 then
 		recipes[ robot.recipeSequence ].enabled = false
@@ -2211,6 +2232,7 @@ function robotOnWood( x, y, blockType, blockTypeIndex )
 		robotOnCompletedRecipe()
 	end
 end
+
 function robotOnIron( x, y, blockType, blockTypeIndex )
 	-- trace( 'robotOnIron' )
 	robotOnCompletedRecipe()
@@ -2412,21 +2434,31 @@ blockConfigs = {
 		sponsoredActorConfig = 'tree',
 		harvestSource = 'wood',
 		harvestRate = 12,
-		defaultCapacity = 15,
+		defaultCapacity = 9 * 10,
 		onPlaced = function( x, y, blockType, blockTypeIndex )
 			blockCreateSponsored( x, y, blockType, blockTypeIndex )
 		end,
+		initialCapacity = function( x, y, blockType )
+			-- special case for first tree
+			if x == 18 and y == 4 then
+				return blockType.defaultCapacity
+			end
+
+			local capCurve = randInRange( 0, 1 ) ^ (1/1.5)
+			return math.floor( lerp( blockType.defaultCapacity * 0.15, blockType.defaultCapacity, capCurve ))
+		end
 	},
 	rubber_tree_base = {
 		name = 'Rubber Tree',
 		sponsoredActorConfig = 'tree_rubber',
 		harvestSource = 'rubber',
 		harvestRate = 15,
+		defaultCapacity = 6 * 10,
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
 			blockCreateSponsored( x, y, blockType, blockTypeIndex )
 		end,
 	},
-	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 8 },
+	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 8, defaultCapacity = 9 * 16, },
 	source_gold_ore = { name = 'Gold Ore', harvestSource = 'gold_ore', harvestRate = 60 }, 
 	source_copper = { name = 'Copper', harvestSource = 'copper', harvestRate = 20 }, 
 	source_stone = { name = 'Stone', harvestSource = 'stone', harvestRate = 12 }, 
@@ -2586,7 +2618,13 @@ function fixupBlocks()
 		withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
 			if baseBlockType.onPlaced ~= nil then 
 				baseBlockType.onPlaced( x, y, blockType, blockTypeIndex )
-				dataForBlockAt( x, y ).capacity = baseBlockType.defaultCapacity
+				if baseBlockType.defaultCapacity ~= nil then
+					if baseBlockType.initialCapacity ~= nil then
+						blockSetCapacity( x, y, baseBlockType.initialCapacity( x, y, baseBlockType ) )
+					else
+						blockSetCapacity( x, y, baseBlockType.defaultCapacity )
+					end
+				end
 			end
 		end)
 	end )
@@ -2720,8 +2758,8 @@ function setWorldView( x, y )
 	x = clamp( x, 0, WORLD_SIZE_PIXELS - screen_wid() )
 	y = clamp( y, 0, WORLD_SIZE_PIXELS - screen_hgt() )
 
-	viewLeft = round( x, 1.0 )
-	viewTop = round( y, 1.0 )
+	viewLeft = math.floor( x )
+	viewTop = math.floor( y )
 	camera( viewLeft, viewTop )
 end
 
