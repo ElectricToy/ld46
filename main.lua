@@ -956,8 +956,6 @@ function combineResources( a, b )
 	local total = ( a.count or 1 ) + ( b.count or 1 )
 
 	a.count = math.min( total, RESOURCE_MAX_COUNT_DEFAULT )
-	a.birthTicks = b.birthTicks
-	a.countAtLastProduceSound = b.countAtLastProduceSound
 
 	deleteActor( b )
 end
@@ -972,7 +970,8 @@ function onResourcesCollide( a, b )
 end
 
 function wouldNewItemBeSwallowedNear( position, newActorType )
-	local actorThere = closestActorTo( position.x, position.y, 2, function( actor )
+	assert( position and newActorType )
+	local actorThere = closestActorTo( position.x, position.y, 8, function( actor )
 		return not actor.held and actor.configKey == newActorType
 	end)
 	
@@ -1781,18 +1780,6 @@ function updateActor( actor )
 		actor.additiveColor = colorLerp( actor.additiveColor, 0, 0.08 )
 	end
 
-	-- we ask actors to produce their own "produce" sound after they've survived
-	-- a split second so that harvested actors that get "swallowed" by the actors they're combined with
-	-- don't make a sound.
-	if actor.produced 
-		and actorAgeTicks( actor ) > 2 
-		and 
-			( 	actor.countAtLastProduceSound == nil 
-				or ( actor.count or 1 ) > actor.countAtLastProduceSound ) then
-		sfx( 'produce', 0.35 )
-		actor.countAtLastProduceSound = actor.count or 1
-	end
-
 	if not actor.inert and ( actor.config.inert == nil or not actor.config.inert ) then
 
 		if actor.config.tick ~= nil then
@@ -1976,7 +1963,6 @@ function blockCompleteRecipe( x, y, blockType, blockTypeIndex )
 		for key, count in pairs( recipe.output ) do
 			for i = 1, count do
 				local actor = createActor( key, creationPosition.x, creationPosition.y )
-				actor.produced = true
 			end
 		end	
 	end
@@ -2041,7 +2027,13 @@ end
 local DEFAULT_HARVEST_RATE = 5
 
 function onBlockRanOutOfCapacity( x, y, blockType, blockTypeIndex )
-	sfx( 'source_exhausted', 0.25 )
+	sfx( 'source_exhausted', 0.2 )
+
+	color_multiplied_r_smoothed = 0.5
+	color_multiplied_g_smoothed = 0.75
+	color_multiplied_b_smoothed = 0.5
+
+	
 	mset( x, y, 486 )
 	if dataForBlockAt( x, y ).sponsoredActor ~= nil then
 		deleteActor( dataForBlockAt( x, y ).sponsoredActor )
@@ -2057,12 +2049,12 @@ function blockIsHarvestable( x, y, blockType, blockTypeIndex )
 end
 
 function drainBlockCapacity( x, y, blockType, blockTypeIndex )
-	if dataForBlockAt( x, y - 1 ).capacity == nil then return end	-- nil is infinite capacity
+	if dataForBlockAt( x, y ).capacity == nil then return end	-- nil is infinite capacity
 
-	dataForBlockAt( x, y - 1 ).capacity = dataForBlockAt( x, y - 1 ).capacity - 1
+	dataForBlockAt( x, y ).capacity = dataForBlockAt( x, y ).capacity - 1
 
-	if dataForBlockAt( x, y - 1 ).capacity == 0 then
-		onBlockRanOutOfCapacity( x, y - 1, blockType, blockTypeIndex )
+	if dataForBlockAt( x, y ).capacity == 0 then
+		onBlockRanOutOfCapacity( x, y, blockType, blockTypeIndex )
 	end
 end
 
@@ -2072,8 +2064,8 @@ function harvesterDoHarvest( harvestSource, x, y, blockType, blockTypeIndex, nei
 
 	local creationPosition = creationPositionFromBlockAt( x, y )
 
-	local producedActor = createActor( harvestSource, creationPosition.x, creationPosition.y )
-	producedActor.produced = true	-- TODO!!! streamline this craziness
+	createActor( harvestSource, creationPosition.x, creationPosition.y )
+	sfx( 'produce', 0.5 )
 end
 
 function harvesterTick( x, y, blockType, blockTypeIndex )
@@ -2086,7 +2078,9 @@ function harvesterTick( x, y, blockType, blockTypeIndex )
 
 			-- would the produced actor simply be swallowed up by a group?
 			local creationPosition = creationPositionFromBlockAt( x, y )
-			if wouldNewItemBeSwallowedNear( creationPosition, harvestSource ) then return false end
+			if wouldNewItemBeSwallowedNear( creationPosition, neighborBlockTypeBase.harvestSource ) then 
+				return false 
+			end
 
 			local harvestRate = ( neighborBlockTypeBase.harvestRate or DEFAULT_HARVEST_RATE ) * 60
 			if ( ticks + 1 ) % harvestRate == 0 then
@@ -2369,7 +2363,7 @@ blockConfigs = {
 		name = 'Tree',
 		sponsoredActorConfig = 'tree',
 		harvestSource = 'wood',
-		harvestRate = 12,
+		harvestRate = 1,		-- TODO!!! 12
 		defaultCapacity = 15,
 		onPlaced = function( x, y, blockType, blockTypeIndex ) 
 			local sponsoredActor = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE, ( y + 1 ) * PIXELS_PER_TILE )
@@ -2388,7 +2382,7 @@ blockConfigs = {
 			dataForBlockAt( x, y ).sponsoredActor = sponsoredActor
 		end,
 	},
-	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 1 },		-- TODO!!! 8
+	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 8 },
 	source_gold_ore = { name = 'Gold Ore', harvestSource = 'gold_ore', harvestRate = 60 }, 
 	source_copper = { name = 'Copper', harvestSource = 'copper', harvestRate = 20 }, 
 	source_stone = { name = 'Stone', harvestSource = 'stone', harvestRate = 12 }, 
