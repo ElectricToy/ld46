@@ -1,12 +1,34 @@
 {
     "Lua.diagnostics.globals": [
-        "amendedObject",
         "text_scale",
         "lerp",
         "filter_mode",
         "screen_size",
         "sprite_size",
         "camera",
-        "color_multiplied_g"
+        "sfx",
+        "barrel",
+        "bloom",
+        "burn_in",
+        "chromatic_aberration",
+        "noise",
+        "saturation",
+        "color_multiplied",
+        "bevel",
+        "circ",
+        "mget",
+        "mset",
+        "btn",
+        "btnp",
+        "screen_wid",
+        "screen_hgt",
+        "music",
+        "fillp",
+        "circfill",
+        "spr",
+        "fget",
+        "rect_collision_adjustment",
+        "map",
+        "rectfill"
     ]
 }
