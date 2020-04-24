@@ -1,0 +1,12 @@
+{
+    "Lua.diagnostics.globals": [
+        "amendedObject",
+        "text_scale",
+        "lerp",
+        "filter_mode",
+        "screen_size",
+        "sprite_size",
+        "camera",
+        "color_multiplied_g"
+    ]
+}
