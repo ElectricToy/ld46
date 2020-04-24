@@ -974,13 +974,15 @@ function onResourcesCollide( a, b )
 	end
 end
 
-function wouldNewItemBeSwallowedNear( position, newActorType )
+function wouldNewItemBeSwallowedNear( position, newActorType, itemsToAdd )
+	itemsToAdd = itemsToAdd or 1
+
 	assert( position and newActorType )
 	local actorThere = closestActorTo( position.x, position.y, 8, function( actor )
 		return not actor.held and actor.configKey == newActorType
 	end)
 	
-	return actorThere ~= nil and ((( actorThere.count or 1 ) >= RESOURCE_MAX_COUNT_DEFAULT ) 
+	return actorThere ~= nil and ((( actorThere.count or 1 ) + itemsToAdd > RESOURCE_MAX_COUNT_DEFAULT ) 
 			  and actorThere.pos:equals( position ))
 end
 
@@ -1050,6 +1052,24 @@ function playerFootstepFrames( start )
 				or nil
 		}
 	end
+	return frames
+end
+
+function selfDeletingAnimFrames( start, count, step )
+	step = step or 1
+
+	local frames = {}
+
+	for i = 0, count - 1 do
+		frames[ i ] = { 
+			frame = i * step + start,
+			event = i + 1 == count and function( actor )
+				deleteActor( actor )
+			end
+				or nil
+		}
+	end
+
 	return frames
 end
 
@@ -1140,15 +1160,7 @@ actorConfigurations = {
 		tileSizeX = 3,
 		tileSizeY = 1,
 		animations = {
-			idle = { speed = 0.25, frames = {					
-				224, 224+3*2, 224+3*3, 224+3*4, 224+3*5, 224+3*6, 224+3*7, 224+3*8,
-				{ 	
-					frame = 224+3*8, 
-					event = function( actor )
-						deleteActor( actor )
-					end 
-				}
-			} },
+			idle = { speed = 0.25, frames = selfDeletingAnimFrames( 224, 8, 3 ) },
 		},
 	},
 	pickup_particles = {
@@ -1158,15 +1170,27 @@ actorConfigurations = {
 		tileSizeX = 1,
 		tileSizeY = 1,
 		animations = {
-			idle = { speed = 0.35, frames = {					
-				128, 128+1, 128+2, 128+3, 128+4, 128+5, 128+6, 128+7, 128+8, 128+9, 128+10, 128+11, 128+12, 128+13, 128+14,
-				{ 	
-					frame = 128+15, 
-					event = function( actor )
-						deleteActor( actor )
-					end 
-				}
-			} },
+			idle = { speed = 0.35, frames = selfDeletingAnimFrames( 128, 15 ) },
+		},
+	},
+	produce_particles = {
+		inert = true,
+		nonColliding = true,
+		ulOffset = vec2:new( 0, 0 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0.35, frames = selfDeletingAnimFrames( 176, 9 ) },
+		},
+	},
+	consume_particles = {
+		inert = true,
+		nonColliding = true,
+		ulOffset = vec2:new( 0, 0 ),
+		tileSizeX = 1,
+		tileSizeY = 1,
+		animations = {
+			idle = { speed = 0.35, frames = selfDeletingAnimFrames( 208, 7 ) },
 		},
 	},
 	conveyor = {
@@ -1969,6 +1993,9 @@ function blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availableIng
 		end
 	end
 
+	createActor( 'consume_particles', x * PIXELS_PER_TILE, y * PIXELS_PER_TILE )
+	sfx( 'consume', 0.5 )
+
 	-- cook
 	local data = dataForBlockAt( x, y )
 	data.doneTick = ticks + recipe.duration * 60
@@ -1990,6 +2017,8 @@ function blockCompleteRecipe( x, y, blockType, blockTypeIndex )
 	local creationPosition = creationPositionFromBlockAt( x, y )
 
 	if recipe.output then
+		createActor( 'produce_particles', x * PIXELS_PER_TILE, y * PIXELS_PER_TILE )
+
 		for key, count in pairs( recipe.output ) do
 			for i = 1, count do
 				local actor = createActor( key, creationPosition.x, creationPosition.y )
@@ -2048,7 +2077,22 @@ function blockCheckRecipes( x, y, blockType, blockTypeIndex )
 			end
 
 			if satisfied then
-				blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availableIngredients )
+
+				-- make sure there's a place to put the output
+				local creationPosition = creationPositionFromBlockAt( x, y )
+				local clearToStartRecipe = true
+				if recipe.output ~= nil then
+					for key, count in pairs( recipe.output ) do
+						if wouldNewItemBeSwallowedNear( creationPosition, key, count ) then
+							clearToStartRecipe = false
+							break
+						end
+					end
+				end
+
+				if clearToStartRecipe then
+					blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availableIngredients )
+				end
 			end
 		end
 	end
@@ -2101,6 +2145,7 @@ function harvesterDoHarvest( harvestSource, x, y, blockType, blockTypeIndex, nei
 
 	createActor( harvestSource, creationPosition.x, creationPosition.y )
 	sfx( 'produce', 0.5 )
+	createActor( 'produce_particles', x * PIXELS_PER_TILE, y * PIXELS_PER_TILE )
 end
 
 function harvestRateToPctChance( rate )
@@ -2124,8 +2169,9 @@ function harvesterTick( x, y, blockType, blockTypeIndex )
 			end
 
 			local harvestRate = ( neighborBlockTypeBase.harvestRate or DEFAULT_HARVEST_RATE )
-			local harvestChancePerTick = harvestRateToPctChance( harvestRate )
-			if pctChance( harvestChancePerTick ) then
+			-- local harvestChancePerTick = harvestRateToPctChance( harvestRate )
+			-- if pctChance( harvestChancePerTick ) then
+			if ( tick + 1 ) % harvestRate == 0 then
 				harvesterDoHarvest( neighborBlockTypeBase.harvestSource, x, y, blockType, blockTypeIndex, neighborBlockTypeBase, neighborBaseBlockTypeIndex)
 			end
 			return true
@@ -2458,10 +2504,10 @@ blockConfigs = {
 			blockCreateSponsored( x, y, blockType, blockTypeIndex )
 		end,
 	},
-	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 8, defaultCapacity = 9 * 16, },
+	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 12, defaultCapacity = 9 * 16, },
 	source_gold_ore = { name = 'Gold Ore', harvestSource = 'gold_ore', harvestRate = 60 }, 
 	source_copper = { name = 'Copper', harvestSource = 'copper', harvestRate = 20 }, 
-	source_stone = { name = 'Stone', harvestSource = 'stone', harvestRate = 12 }, 
+	source_stone = { name = 'Stone', harvestSource = 'stone', harvestRate = 10 }, 
 	robot_base_off = robotBaseClass(),
 	robot_base_on = {
 		drawRecipes = false,
