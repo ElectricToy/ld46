@@ -24,11 +24,21 @@
         "screen_hgt",
         "music",
         "fillp",
+        "circ",
         "circfill",
         "spr",
         "fget",
         "rect_collision_adjustment",
         "map",
-        "rectfill"
+        "rectfill",
+        "text_scale",
+        "filter_mode",
+        "screen_size",
+        "sprite_size",
+        "_debug_trace",
+        "blockConfigs"
+    ],
+    "Lua.diagnostics.disable": [
+        "unused-local"
     ]
 }

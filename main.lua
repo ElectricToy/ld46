@@ -2,26 +2,26 @@
 
 -- UTILITY
 
-local function lerp( a, b, alpha )
+function lerp( a, b, alpha )
 	return a + (b-a) * alpha
 end
 
-local function randInRange( a, b )
+function randInRange( a, b )
 	return lerp( a, b, math.random() )
 end
 
-local function randInt( a, b )
+function randInt( a, b )
 	return math.floor( randInRange( a, b ))
 end
 
-local function randomElement( tab )
+function randomElement( tab )
 	local n = #tab
 	if n == 0 then return nil end
 
 	return tab[ math.random( 1, #tab ) ]
 end
 
-local function tableString( tab )
+function tableString( tab )
 	local str = ''
 	for key, value in pairs( tab ) do
 		str = str .. key .. '=' .. value .. ', '
@@ -29,7 +29,7 @@ local function tableString( tab )
 	return str
 end
 
-local function tableStringValues( tab )
+function tableStringValues( tab )
 	local str = ''
 	for _, value in pairs( tab ) do
 		str = str .. value .. ' '
@@ -37,7 +37,7 @@ local function tableStringValues( tab )
 	return str
 end
 
-local function tableFind( tab, element )
+function tableFind( tab, element )
     for index, value in pairs(tab) do
         if value == element then
             return index
@@ -46,11 +46,11 @@ local function tableFind( tab, element )
 	return nil
 end
 
-local function tableRemoveValue( tab, element )
+function tableRemoveValue( tab, element )
 	table.remove( tab, tableFind( tab, element ))
 end
 
-local function tableCopy( t )
+function tableCopy( t )
 	local u = {}
 	for k, v in pairs(t) do u[k] = v end
 	return setmetatable(u, getmetatable(t))
@@ -59,7 +59,7 @@ end
 local debugCircles = {}
 local debugMessages = {}
 
-local function drawDebugCircles()
+function drawDebugCircles()
 	for _, circle in ipairs( debugCircles ) do
 		circ( circle[1].x, circle[1].y, 32 )
 	end
@@ -67,7 +67,7 @@ local function drawDebugCircles()
 	debugCircles = {}
 end
 
-local function drawDebug()
+function drawDebug()
 	print( '', 0, 0 )
 
 	-- print( tostring( mousex ) .. ',' .. tostring( mousey ) .. '::' .. tostring( placeableRoom ))
@@ -84,47 +84,39 @@ local function drawDebug()
 	end
 end
 
-local function spriteIndex( x, y )
-	return y * TILES_X + x
-end
-
-local function worldToTile( x )
-	return math.floor( x / PIXELS_PER_TILE )
-end
-
-local function debugCircle( center, radius, color )
+function debugCircle( center, radius, color )
 	table.insert( debugCircles, {center, radius, color })
 end
 
-local function trace( message )
+function trace( message )
 	table.insert( debugMessages, message )
 end
 
-local function length( x, y )
+function length( x, y )
 	return math.sqrt( x * x + y * y )
 end
 
-local function sign( x )
+function sign( x )
 	return x < 0 and -1 or ( x > 0 and 1 or 0 )
 end
 
-local function signNoZero( x )
+function signNoZero( x )
 	return x < 0 and -1 or 1
 end
 
-local function clamp( x, minimum, maximum )
+function clamp( x, minimum, maximum )
 	return math.min( maximum, math.max( x, minimum ))
 end
 
-local function proportion( x, a, b )
+function proportion( x, a, b )
 	return ( x - a ) / ( b - a )
 end
 
-local function pctChance( percent )
+function pctChance( percent )
 	return randInRange( 0, 100 ) <= percent
 end
 
-local function round( x, divisor )
+function round( x, divisor )
 	divisor = divisor or 1
 	return ( x + 0.5 ) // divisor * divisor
 end
@@ -132,12 +124,12 @@ end
 -- TIME
 
 local ticks = 0
-local function now()
+function now()
 	return ticks * 1 / 60.0
 end
 
 local realTicks = 0
-local function realNow()
+function realNow()
 	return realTicks * 1 / 60.0
 end
 
@@ -148,33 +140,41 @@ filter_mode( "Nearest" )
 
 screen_size( 220, 128 )
 
-WHITE = 0xFFE3E0F2
-BRIGHT_RED = 0xFFC23324
-LIGHT_GRAY = 0xFFB0B8BF
+local WHITE = 0xFFE3E0F2
+local BRIGHT_RED = 0xFFC23324
+local LIGHT_GRAY = 0xFFB0B8BF
 
 
 -- GLOBALS
 
-GLOBAL_DRAG = 0.175
-RESOURCE_MAX_COUNT_DEFAULT = 9
+local GLOBAL_DRAG = 0.175
+local RESOURCE_MAX_COUNT_DEFAULT = 9
 
-MIN_ACTIVE_BLOCK_INDEX = 256
+local MIN_ACTIVE_BLOCK_INDEX = 256
 
-SPRITE_SHEET_PIXELS_X = 512
-PIXELS_PER_TILE = 16
-TILES_X = SPRITE_SHEET_PIXELS_X // PIXELS_PER_TILE
+local SPRITE_SHEET_PIXELS_X = 512
+local PIXELS_PER_TILE = 16
+local TILES_X = SPRITE_SHEET_PIXELS_X // PIXELS_PER_TILE
 
-ACTOR_DRAW_MARGIN = PIXELS_PER_TILE
+local ACTOR_DRAW_MARGIN = PIXELS_PER_TILE
 
 sprite_size( PIXELS_PER_TILE )
 
-WORLD_SIZE_TILES = 32
-WORLD_SIZE_PIXELS = WORLD_SIZE_TILES * PIXELS_PER_TILE
+local WORLD_SIZE_TILES = 32
+local WORLD_SIZE_PIXELS = WORLD_SIZE_TILES * PIXELS_PER_TILE
 
-DEFAULT_CHROMATIC_ABERRATION = 0.4
-DEFAULT_BARREL = 0.2
-DEFAULT_BLOOM_INTENSITY = 0.1
-DEFAULT_BURN_IN = 0.1
+function spriteIndex( x, y )
+	return y * TILES_X + x
+end
+
+function worldToTile( x )
+	return math.floor( x / PIXELS_PER_TILE )
+end
+
+local DEFAULT_CHROMATIC_ABERRATION = 0.4
+local DEFAULT_BARREL = 0.2
+local DEFAULT_BLOOM_INTENSITY = 0.1
+local DEFAULT_BURN_IN = 0.1
 
 local barrel_ = DEFAULT_BARREL
 local bloom_intensity_ = DEFAULT_BLOOM_INTENSITY
@@ -204,15 +204,16 @@ local color_multiplied_g_smoothed = color_multiplied_g
 local color_multiplied_b_smoothed = color_multiplied_b
 local bevel_smoothed = bevel_
 
-SCREEN_EFFECT_SMOOTH_FACTOR = 0.035
+local SCREEN_EFFECT_SMOOTH_FACTOR = 0.035
 
-local function updateScreenParams()
+function updateScreenParams()
 	barrel_smoothed = lerp( barrel_smoothed, barrel_, SCREEN_EFFECT_SMOOTH_FACTOR )
 	bloom_intensity_smoothed = lerp( bloom_intensity_smoothed, bloom_intensity_, SCREEN_EFFECT_SMOOTH_FACTOR )
 	bloom_contrast_smoothed = lerp( bloom_contrast_smoothed, bloom_contrast_, SCREEN_EFFECT_SMOOTH_FACTOR )
 	bloom_brightness_smoothed = lerp( bloom_brightness_smoothed, bloom_brightness_, SCREEN_EFFECT_SMOOTH_FACTOR )
 	burn_in_smoothed = lerp( burn_in_smoothed, burn_in_, SCREEN_EFFECT_SMOOTH_FACTOR )
-	chromatic_aberration_smoothed = lerp( chromatic_aberration_smoothed, chromatic_aberration_, SCREEN_EFFECT_SMOOTH_FACTOR )
+	chromatic_aberration_smoothed =
+		lerp( chromatic_aberration_smoothed, chromatic_aberration_, SCREEN_EFFECT_SMOOTH_FACTOR )
 	noise_smoothed = lerp( noise_smoothed, noise_, SCREEN_EFFECT_SMOOTH_FACTOR )
 	rescan_smoothed = lerp( rescan_smoothed, rescan_, SCREEN_EFFECT_SMOOTH_FACTOR )
 	saturation_smoothed = lerp( saturation_smoothed, saturation_, SCREEN_EFFECT_SMOOTH_FACTOR )
@@ -402,21 +403,25 @@ function vec2:__tostring()
   return '(' .. string.format( "%.2f", self.x ) .. ', ' .. string.format( "%.2f", self.y ) .. ')'
 end
 
-local function sheet_pixels_to_sprite( x, y )
+function sheet_pixels_to_sprite( x, y )
 	return ( y // PIXELS_PER_TILE ) * (SPRITE_SHEET_PIXELS_X//PIXELS_PER_TILE) + ( x // PIXELS_PER_TILE )
 end
 
 -- Objects
 
-local function rectsOverlap( rectA, rectB )
-	return not ( rectB.right < rectA.left or rectB.left > rectA.right or rectB.bottom < rectA.top or rectB.top > rectA.bottom )
+function rectsOverlap( rectA, rectB )
+	return not (
+			rectB.right < rectA.left
+		or  rectB.left > rectA.right
+		or  rectB.bottom < rectA.top
+		or  rectB.top > rectA.bottom )
 end
 
-local function rectOverlapsPoint( rect, pos )
+function rectOverlapsPoint( rect, pos )
 	return rect.left <= pos.x and pos.x <= rect.right and rect.top <= pos.y and pos.y <= rect.bottom
 end
 
-local function expandContractRect( rect, expansion )
+function expandContractRect( rect, expansion )
 	rect.left = rect.left - expansion
 	rect.top = rect.top - expansion
 	rect.right = rect.right + expansion
@@ -424,11 +429,11 @@ local function expandContractRect( rect, expansion )
 	return rect
 end
 
-local function sprite_by_grid( x, y )
+function sprite_by_grid( x, y )
 	return y // TILES_X + x
 end
 
-local function range( from, to, step )
+function range( from, to, step )
 	local arr = {}
 	for i = from, to, step or 1 do
 		table.insert( arr, i )
@@ -438,7 +443,7 @@ end
 
 local initialMap = {}
 
-local function saveInitialMap()
+function saveInitialMap()
 	initialMap = {}
 	for y = 0, WORLD_SIZE_TILES - 1 do
 		initialMap[ y ] = {}
@@ -448,7 +453,7 @@ local function saveInitialMap()
 	end
 end
 
-local function restoreInitialMap()
+function restoreInitialMap()
 	if initialMap == nil then
 		trace( 'no initial map to restore' )
 		return
@@ -463,16 +468,17 @@ end
 
 local actors = {}
 local blocksToActors = {}
+local worldState = {}
 
-local function actorCenter( actor )
+function actorCenter( actor )
 	return actor.pos - vec2:new( 0, actor.config.dims.y * 0.5 )
 end
 
-local function actorConveyorForce( actor, force )
+function actorConveyorForce( actor, force )
 	actor.vel = actor.vel + force
 end
 
-local function actorControlThrust( actor, thrust )
+function actorControlThrust( actor, thrust )
 	actor.thrust = thrust
 	actor.vel = actor.vel + thrust
 
@@ -483,17 +489,17 @@ end
 
 ARM_OFFSET = vec2:new( 0, -2 )
 
-local function pickupPoint( byActor, useArmLength )
+function pickupPoint( byActor, useArmLength )
 	assert( useArmLength )
 	return byActor.pos + ARM_OFFSET + byActor.heading * useArmLength
 end
 
-local function placementPoint( byActor, useArmLength )
+function placementPoint( byActor, useArmLength )
 	assert( useArmLength )
 	return byActor.pos + ARM_OFFSET + byActor.heading * useArmLength
 end
 
-local function blockInteractionTile( byActor, useArmLength )
+function blockInteractionTile( byActor, useArmLength )
 	local point = pickupPoint( byActor, useArmLength )
 
 	local pickupTileX = worldToTile( point.x )
@@ -507,7 +513,7 @@ local function blockInteractionTile( byActor, useArmLength )
 	return pickupTileX, pickupTileY
 end
 
-local function blockToPickup( byActor, useArmLength )
+function blockToPickup( byActor, useArmLength )
 
 	local pickupTileX, pickupTileY = blockInteractionTile( byActor, useArmLength )
 
@@ -517,11 +523,11 @@ local function blockToPickup( byActor, useArmLength )
 	return pickupTileX, pickupTileY
 end
 
-local function randomGroundBlockIndex()
+function randomGroundBlockIndex()
 	return randInt( 256, 256+5 )
 end
 
-local function blockOnNeighborChanged( x, y, changedX, changedY )
+function blockOnNeighborChanged( x, y, changedX, changedY )
 	withBlockTypeAt( x, y, function( blockType, blockTypeIndex )
 		withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
 			if baseBlockType ~= nil and baseBlockType.onPlaced ~= nil then
@@ -531,30 +537,30 @@ local function blockOnNeighborChanged( x, y, changedX, changedY )
 	end)
 end
 
-local function onBlockChangeNear( x, y )
+function onBlockChangeNear( x, y )
 	blockOnNeighborChanged( x, y, x, y )		-- self, actually
 	blockOnNeighborChanged( x, y - 1, x, y )
 end
 
-local function setBlockTypeSimple( x, y, blockTypeIndex )
+function setBlockTypeSimple( x, y, blockTypeIndex )
 	if blockTypeIndex == mget( x, y ) then return end
 
 	blockDeleteSponsored( x, y )
 	mset( x, y, blockTypeIndex )
 end
 
-local function setBlockType( x, y, blockTypeIndex )
+function setBlockType( x, y, blockTypeIndex )
 	if blockTypeIndex == mget( x, y ) then return end
 	setBlockTypeSimple( x, y, blockTypeIndex )
 	onBlockChangeNear( x, y )
 end
 
-local function clearBlock( x, y )
+function clearBlock( x, y )
 	setBlockType( x, y, randomGroundBlockIndex() )
 	clearDataForBlockAt( x, y )
 end
 
-local function createActorForBlockIndex( blockTypeIndex, x, y )
+function createActorForBlockIndex( blockTypeIndex, x, y )
 	return withBaseBlockType( blockTypeIndex, function( baseBlockType, baseBlockTypeIndex )
 		if baseBlockType.actorConfigName ~= nil then
 			return createActor( baseBlockType.actorConfigName, x, y )
@@ -562,7 +568,7 @@ local function createActorForBlockIndex( blockTypeIndex, x, y )
 	end)
 end
 
-local function forEachActorNear( x, y, radius, callback )
+function forEachActorNear( x, y, radius, callback )
 	local pos = vec2:new( x, y )
 	local rSquared = radius * radius
 	for _, actor in ipairs( actors ) do
@@ -573,7 +579,7 @@ local function forEachActorNear( x, y, radius, callback )
 	end
 end
 
-local function closestActorTo( x, y, radius, filterFn )
+function closestActorTo( x, y, radius, filterFn )
 	local nearestActor = nil
 	local nearestDistSquared = nil
 	forEachActorNear( x, y, radius, function( actor, distSquared )
@@ -588,13 +594,13 @@ local function closestActorTo( x, y, radius, filterFn )
 	return nearestActor
 end
 
-local function findPickupActorNear( forActor, x, y, radius )
+function findPickupActorNear( forActor, x, y, radius )
 	return closestActorTo( x, y, radius, function( actor, distSquared )
 		return not actor.held and actor.config.mayBePickedUp and actor ~= forActor
 	end)
 end
 
-local function makeHeld( item )
+function makeHeld( item )
 	item.wasEverHeld = true
 	item.held = true
 	item.inert = true
@@ -610,7 +616,7 @@ local function makeHeld( item )
 	createShadowForActor( item )
 end
 
-local function makeNotHeld( item, dropPoint )
+function makeNotHeld( item, dropPoint )
 	item.held = false
 	item.pos:set( dropPoint )
 	item.lastPos:set( item.pos )
@@ -625,14 +631,14 @@ local function makeNotHeld( item, dropPoint )
 end
 
 
-local function mayPlaceBlockOnBlock( x, y )
+function mayPlaceBlockOnBlock( x, y )
 	local blockType, blockTypeIndex = blockTypeAt( x, y )
 	if blockType == nil then return false end
 
 	return blockType.mayBePlacedUpon or false
 end
 
-local function tryPlaceAsBlock( item, direction, position )
+function tryPlaceAsBlock( item, direction, position )
 	assert( position )
 	local blockTypeForItem = actorPlacementBlock( item, direction )
 	if blockTypeForItem == nil then return nil end
@@ -652,7 +658,7 @@ local function tryPlaceAsBlock( item, direction, position )
 	return placementX, placementY
 end
 
-local function playerTryPlaceAsBlock( item, direction, position )
+function playerTryPlaceAsBlock( item, direction, position )
 
 	local placementX, placementY = tryPlaceAsBlock( item, direction, position )
 
@@ -672,7 +678,7 @@ end
 
 DEFAULT_ARM_LENGTH = 4
 
-local function tryDropHeldItem( options )
+function tryDropHeldItem( options )
 
 	local item = player.heldItem
 	if not item then return end
@@ -712,9 +718,9 @@ local function tryDropHeldItem( options )
 	end
 end
 
-local function tryPickupActor( byActor )
+function tryPickupActor( byActor )
 
-	local function tryArmLength( armLength )
+	function tryArmLength( armLength )
 		-- look for actors near the pick area
 		local point = pickupPoint( byActor, armLength )
 		local pickupActor = findPickupActorNear( byActor, point.x, point.y, 12 )
@@ -744,9 +750,9 @@ local function tryPickupActor( byActor )
 	return item
 end
 
-local function tryPickupBlock( byActor )
+function tryPickupBlock( byActor )
 
-	local function tryArmLength( armLength )
+	function tryArmLength( armLength )
 		local blockX, blockY = blockToPickup( byActor, armLength )
 		if blockX ~= nil then
 			-- place in inventory
@@ -789,7 +795,7 @@ local function tryPickupBlock( byActor )
 	return item
 end
 
-local function onButton1()
+function onButton1()
 	-- Pickup, prefering actor.
 	if tryPickupActor( player ) == nil then
 		if tryPickupBlock( player ) == nil then
@@ -802,7 +808,7 @@ local function onButton1()
 	end
 end
 
-local function onButton2()
+function onButton2()
 	-- try to drop.
 	if player.heldItem ~= nil then
 		tryDropHeldItem( { preferDropAll = true } ) -- forcing drop
@@ -814,7 +820,7 @@ local function onButton2()
 	end
 end
 
-local function updateInput( actor )
+function updateInput( actor )
 
 	local thrust = vec2:new()
 
@@ -863,52 +869,6 @@ function updateViewTransform()
 	local viewPoint = ( player.pos - vec2:new( 0, 10 ) ) - viewOffset
 
 	setWorldView( viewPoint.x, viewPoint.y )
-end
-
-function populateWithActors()
-
-	-- createActor( 'chip', 10 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
-	-- createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
-	-- createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
-end
-
-function startGame()
-
-	music( 'ld46', 0.2 )
-
-	worldState = {}
-
-	blockData = {}
-
-	restoreInitialMap()
-
-	actors = {}
-	robot = nil
-	player = nil
-
-	fixupBlocks()
-
-	chromatic_aberration_ = DEFAULT_CHROMATIC_ABERRATION
-	barrel_ = 				DEFAULT_BARREL
-	bloom_intensity_ = 		DEFAULT_BLOOM_INTENSITY
-	burn_in_ = DEFAULT_BURN_IN
-
-	color_multiplied_r = 1
-	color_multiplied_g = 1
-	color_multiplied_b = 1
-	color_multiplied_r_smoothed = 0
-	color_multiplied_g_smoothed = 0
-	color_multiplied_b_smoothed = 0
-
-	barrel_ = DEFAULT_BARREL
-	barrel_smoothed = barrel_
-
-
-	player = createActor( 'player', 9 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
-
-	populateWithActors()
-
-	updateViewTransform()
 end
 
 function updateShadow( actor )
@@ -989,7 +949,7 @@ function onResourcesCollide( a, b )
 	end
 end
 
-local function wouldNewItemBeSwallowedNear( position, newActorType, itemsToAdd )
+function wouldNewItemBeSwallowedNear( position, newActorType, itemsToAdd )
 	itemsToAdd = itemsToAdd or 1
 
 	assert( position and newActorType )
@@ -1011,7 +971,7 @@ MAX_FUEL_FOR_NEEDINESS = FUEL_LOSS_PER_SECOND * 30
 MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY = FUEL_LOSS_PER_SECOND * 4
 MIN_FUEL_FOR_MAX_GUAGE_FLICKER = MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY + FUEL_LOSS_PER_SECOND * 6
 
-local function onRobotOutOfFuel( actor )
+function onRobotOutOfFuel( actor )
 	if not worldState.gameLost then
 		worldState.gameLost = true
 		worldState.gameOverStartTime = realTicks
@@ -1670,12 +1630,12 @@ end
 
 -- UPDATE
 
-local function actorMayCollideWith( actor, other )
+function actorMayCollideWith( actor, other )
 	if actor.config.nonColliding then return false end
 	return true
 end
 
-local function actorOnCollide( actor, other )
+function actorOnCollide( actor, other )
 
 	-- add to colliding actors if it's not there already
 	if actor.collidingActors ~= nil and actor.collidingActors[ other ] == nil then
@@ -1967,28 +1927,28 @@ function conveyorOnPlaced( x, y, blockType, blockTypeIndex )
 	end)
 end
 
-local function amendedObject( object, callback )
+function amendedObject( object, callback )
 	local amended = tableCopy( object )
 	callback( amended )
 	return amended
 end
 
-local function tileCenterToWorldPos( x, y )
+function tileCenterToWorldPos( x, y )
 	return ( vec2:new( x, y ) + vec2:new( 0.5, 0.5 )) * PIXELS_PER_TILE
 end
 
-local function ingredientCount( list, configKey )
+function ingredientCount( list, configKey )
 	for _, item in ipairs( list ) do
 		if item[ 1 ] == configKey then return item[ 2 ] end
 	end
 	return 0
 end
 
-local function consumeActor( actor )
+function consumeActor( actor )
 	actorCountAdd( actor, -1 )
 end
 
-local function blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availableIngredients )
+function blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availableIngredients )
 	-- consume ingredients
 	for key, count in pairs( recipe.inputs ) do
 		for _, actor in ipairs( availableIngredients[ key ] ) do
@@ -2009,11 +1969,11 @@ local function blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availa
 	setBlockType( x, y, blockType.on_version )
 end
 
-local function creationPositionFromBlockAt( x, y )
+function creationPositionFromBlockAt( x, y )
 	return tileCenterToWorldPos( x, y ) + vec2:new( 0, 14 )
 end
 
-local function blockCompleteRecipe( x, y, blockType, blockTypeIndex )
+function blockCompleteRecipe( x, y, blockType, blockTypeIndex )
 
 	local data = dataForBlockAt( x, y )
 	local recipe = data.recipe
@@ -2142,7 +2102,7 @@ function blockDrainCapacity( x, y, blockType, blockTypeIndex )
 	end
 end
 
-local function harvesterDoHarvest( harvestSource, x, y, blockType, blockTypeIndex, neighborBlockTypeBase, neighborBaseBlockTypeIndex)
+function harvesterDoHarvest( harvestSource, x, y, blockType, blockTypeIndex, neighborBlockTypeBase, neighborBaseBlockTypeIndex)
 
 	blockDrainCapacity( x, y - 1, neighborBlockTypeBase, neighborBaseBlockTypeIndex )
 
@@ -2153,11 +2113,11 @@ local function harvesterDoHarvest( harvestSource, x, y, blockType, blockTypeInde
 	createActor( 'produce_particles', x * PIXELS_PER_TILE, y * PIXELS_PER_TILE )
 end
 
-local function harvestRateToPctChance( rate )
+function harvestRateToPctChance( rate )
 	return ( 1/ rate ) * 100
 end
 
-local function harvesterTick( x, y, blockType, blockTypeIndex )
+function harvesterTick( x, y, blockType, blockTypeIndex )
 	-- get the block just north.
 	local canHarvest = withBlockTypeAt( x, y - 1, function( neighborBlockType, neighborBlockTypeIndex )
 		return withBaseBlockType( neighborBlockTypeIndex, function( neighborBlockTypeBase, neighborBaseBlockTypeIndex )
@@ -2186,7 +2146,7 @@ local function harvesterTick( x, y, blockType, blockTypeIndex )
 	dataForBlockAt( x, y ).animated = canHarvest or false
 end
 
-local function conveyorRotatedVersion( fromBlockTypeIndex, turnsClockwise )
+function conveyorRotatedVersion( fromBlockTypeIndex, turnsClockwise )
 	local MIN = 256
 	local MAX = 256 + 32*4
 
@@ -2243,6 +2203,23 @@ end
 
 function reportIfNil( label, value )
 	trace( label .. ' nil? ' .. ( value == nil and 'true' or 'false' ) )
+end
+
+local guage = {
+	flashBrightness = 1,
+}
+
+function updateFuelGuage()
+	if not worldState.robotFound then return end
+
+	guage.flashBrightness = lerp( guage.flashBrightness, 0.0, 0.1 )
+
+	local guageFlashSpeed = ( robot.fuel <= MIN_FUEL_FOR_MAX_GUAGE_FLICKER ) and 10 or ( robot.fuel <= MAX_FUEL_FOR_NEEDINESS and 60 or 0 )
+
+	if guageFlashSpeed > 0 and ( ticks % guageFlashSpeed ) == 0 then
+		guage.flashBrightness = 1
+		sfx( 'warning', 0.20 )
+	end
 end
 
 function robotOnCompletedRecipe()
@@ -2335,7 +2312,7 @@ function robotBaseClass()
 			},
 			{
 				enabled = false,
-				inputs = { sensor = 2 },
+				inputs = { sensor = 3 },
 				effect = robotOnSensor,
 				duration = ROBOT_RECIPE_DURATION,
 			},
@@ -2436,17 +2413,17 @@ blockConfigs = {
 				duration = 0.5,
 			},
 			{
-				inputs = { stone = 2, wood = 1 },
+				inputs = { stone = 2, wood = 2 },
 				output = { oven = 1 },
 				duration = 0.5,
 			},
 			{
-				inputs = { oven = 1, copper = 2 },
+				inputs = { oven = 1, copper = 3 },
 				output = { combiner = 1 },
 				duration = 0.5,
 			},
 			{
-				inputs = { combiner = 9, gold = 9 },
+				inputs = { sensor = 2, copper = 3 },
 				output = { chip = 1 },
 				duration = 0.5,
 			},
@@ -2510,7 +2487,7 @@ blockConfigs = {
 		end,
 	},
 	source_iron_ore = { name = 'Iron Ore', harvestSource = 'iron_ore', harvestRate = 9, defaultCapacity = 9 * 14, },
-	source_gold_ore = { name = 'Gold Ore', harvestSource = 'gold_ore', harvestRate = 60 },
+	source_gold_ore = { name = 'Gold Ore', harvestSource = 'gold_ore', harvestRate = 45 },
 	source_copper = { name = 'Copper', harvestSource = 'copper', harvestRate = 20 },
 	source_stone = { name = 'Stone', harvestSource = 'stone', harvestRate = 10 },
 	robot_base_off = robotBaseClass(),
@@ -2908,22 +2885,52 @@ function drawActors()
 
 end
 
-guage = {
-	flashBrightness = 1,
-}
+function populateWithActors()
 
-function updateFuelGuage()
-	if not worldState.robotFound then return end
-
-	guage.flashBrightness = lerp( guage.flashBrightness, 0.0, 0.1 )
-
-	local guageFlashSpeed = ( robot.fuel <= MIN_FUEL_FOR_MAX_GUAGE_FLICKER ) and 10 or ( robot.fuel <= MAX_FUEL_FOR_NEEDINESS and 60 or 0 )
-
-	if guageFlashSpeed > 0 and ( ticks % guageFlashSpeed ) == 0 then
-		guage.flashBrightness = 1
-		sfx( 'warning', 0.20 )
-	end
+	-- createActor( 'chip', 10 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+	-- createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+	-- createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
 end
+
+function startGame()
+
+	music( 'ld46', 0.2 )
+
+	worldState = {}
+
+	blockData = {}
+
+	restoreInitialMap()
+
+	actors = {}
+	robot = nil
+	player = nil
+
+	fixupBlocks()
+
+	chromatic_aberration_ = DEFAULT_CHROMATIC_ABERRATION
+	barrel_ = 				DEFAULT_BARREL
+	bloom_intensity_ = 		DEFAULT_BLOOM_INTENSITY
+	burn_in_ = DEFAULT_BURN_IN
+
+	color_multiplied_r = 1
+	color_multiplied_g = 1
+	color_multiplied_b = 1
+	color_multiplied_r_smoothed = 0
+	color_multiplied_g_smoothed = 0
+	color_multiplied_b_smoothed = 0
+
+	barrel_ = DEFAULT_BARREL
+	barrel_smoothed = barrel_
+
+
+	player = createActor( 'player', 9 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+
+	populateWithActors()
+
+	updateViewTransform()
+end
+
 
 function drawHUDFuelGuage()
 	if not worldState.robotFound then return end
@@ -3230,7 +3237,106 @@ end
 
 saveInitialMap()
 
-local worldState = {}
-
 startGame()
 
+function mergeCountDictionaries( a, b )
+	for key, count in pairs( b ) do
+		if a[ key ] == nil then
+			a[ key ] = count
+		else
+			a[ key ] = a[ key ] + count
+		end
+	end
+end
+
+function multiplyCountDictionary( dict, x )
+	for key, count in pairs( dict ) do
+		dict[ key ] = dict[ key ] * x
+	end
+end
+
+function findProviderRecipe( resourceKey )
+	_debug_trace( 'seeking provider for ' .. resourceKey )
+
+	local function seekRecipeBook( book )
+		for configKey, blockConfig in pairs( book ) do
+			if blockConfig.recipes ~= nil then
+				for _, recipe in ipairs( blockConfig.recipes ) do
+					if recipe.output ~= nil then
+						for key, count in pairs( recipe.output ) do
+							if key == resourceKey then
+								_debug_trace( 'found provider for ' .. resourceKey )
+								return recipe, count
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	local recipe, count = seekRecipeBook( blockConfigs )
+	if recipe == nil then
+		return seekRecipeBook( blockTypes )
+	else
+		return recipe, (count or 1)
+	end
+end
+
+function findProviderSource( resourceKey )
+	for key, config in pairs( blockConfigs ) do
+		if config.harvestSource == resourceKey then
+			return config
+		end
+	end
+end
+
+function totalRecipeCosts( recipe )
+	local resourceCounts = {
+		duration = recipe.duration or 0
+	}
+	for key, count in pairs( recipe.inputs ) do
+		_debug_trace( key .. ':' .. count )
+		assert( count > 0 )
+		resourceCounts[ key ] = count
+		local recipeForInput, outputCount = findProviderRecipe( key )
+		if recipeForInput ~= nil then
+			local cookCount = math.ceil( count / ( outputCount or 1))
+			local recipeCosts = totalRecipeCosts( recipeForInput )
+			multiplyCountDictionary( recipeCosts, cookCount )
+			mergeCountDictionaries( resourceCounts, recipeCosts )
+		else
+			local sourceForInput = findProviderSource( key )
+			if sourceForInput ~= nil then
+				resourceCounts.duration = resourceCounts.duration + sourceForInput.harvestRate * count
+			else
+				_debug_trace( 'Found no source for ' .. key )
+			end
+		end
+	end
+
+	return resourceCounts
+end
+
+function reportResourceNeeds()
+	local robotRecipes = blockConfigs.robot_base_off.recipes
+	local resourceCounts = {
+		duration = 0
+	}
+
+	for i = 1, #robotRecipes do
+		local recipe = robotRecipes[ i ]
+
+		local recipeCosts = totalRecipeCosts( recipe )
+		mergeCountDictionaries( resourceCounts, recipeCosts )
+	end
+
+	_debug_trace( tableString( resourceCounts ))
+
+	local minimumWood = math.ceil( resourceCounts.duration / ROBOT_TIME_TO_LOSE_FUEL_FROM_ONE_WOOD_SECONDS )
+	_debug_trace( 'Minimum wood needed: ' .. minimumWood )
+
+	_debug_trace( 'Minutes: ' .. round( resourceCounts.duration / 60 ))
+end
+
+reportResourceNeeds()
