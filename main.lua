@@ -3363,4 +3363,4 @@ function reportResourceNeeds()
 	_debug_trace( 'Minutes: ' .. round( resourceCounts.duration / 60 ))
 end
 
-reportResourceNeeds()
+-- reportResourceNeeds()
