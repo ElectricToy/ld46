@@ -2905,15 +2905,15 @@ end
 
 function populateWithActors()
 
-	for i = 1,9 do
-		createActor( 'chip', 10 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
-	end
-	for i = 1,5 do
-		createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
-	end
-	for i = 1,5 do
-		createActor( 'chip', 11 * PIXELS_PER_TILE, 22 * PIXELS_PER_TILE )
-	end
+	-- for i = 1,9 do
+	-- 	createActor( 'chip', 10 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+	-- end
+	-- for i = 1,5 do
+	-- 	createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+	-- end
+	-- for i = 1,5 do
+	-- 	createActor( 'chip', 11 * PIXELS_PER_TILE, 22 * PIXELS_PER_TILE )
+	-- end
 end
 
 function startGame()
