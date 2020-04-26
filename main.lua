@@ -245,16 +245,21 @@ local vec2 = {}
 
 function vec2:new( x, y )
 
-  x = x or 0
-  y = y or x
+	if type( x ) == 'table' then
+		y = x.y
+		x = x.x
+	end
 
-  local o = {
-    x = x,
-    y = y
-  }
+	x = x or 0
+	y = y or x
 
-  self.__index = self
-  return setmetatable(o, self)
+	local o = {
+	x = x,
+	y = y
+	}
+
+	self.__index = self
+	return setmetatable(o, self)
 end
 
 function vec2:__add(v)
@@ -606,10 +611,8 @@ function makeHeld( item )
 	item.inert = true
 	item.nonColliding = true
 	item.z = 0
-	item.vel = vec2:new( 0, 0)
-	item.lastPos = vec2:new( item.pos )
+	actorSnapTo( item, item.pos )
 	item.lastPlayerPlacedPos = nil
-	item.vel = vec2:new( 0, 0 )
 	item.thrust = vec2:new( 0, 0 )
 	item.heading = vec2:new( -1, 0 )
 
@@ -618,10 +621,8 @@ end
 
 function makeNotHeld( item, dropPoint )
 	item.held = false
-	item.pos:set( dropPoint )
-	item.lastPos:set( item.pos )
-	item.lastPlayerPlacedPos = vec2:new( item.pos.x, item.pos.y )
-	item.vel:set( 0 )
+	actorSnapTo( item, dropPoint )
+	item.lastPlayerPlacedPos = vec2:new( item.pos )
 	item.ulOffset = nil
 	item.z = 0
 	item.inert = false
@@ -888,9 +889,7 @@ function drawShadow( actor )
 end
 
 function updateHeldItem( holder, item )
-	item.pos = lerp( item.pos, holder.pos + vec2:new( 0, 1 + math.sin( ticks * 0.06 ) * 1.5 ), 0.08 )
-	item.lastPos:set( item.pos )
-	item.vel:set( 0, 0 )
+	actorSnapTo( item, lerp( item.pos, holder.pos + vec2:new( 0, 1 + math.sin( ticks * 0.06 ) * 1.5 ), 0.08 ))
 	item.z = lerp( item.z or 0, 16, 0.08 )
 end
 
@@ -900,10 +899,23 @@ function updatePlayer( actor )
 	end
 end
 
--- Two items may always combine (assuming they're the right types), if neither of them has ever been picked up.
--- If at least one of them has been picked up at any point, then they have to also fit under the 9-item limit.
--- This basically allows harvesters to produce "destructively" combining items, but once a player gets
--- involved they don't destructively combine anymore.
+-- Combining rules are complex. They differ between two items that have never been picked up vs when at least
+-- one has, and for situations where one item is on the ground and one is held.
+-- They must always, of course, be the same type.
+--
+-- Both on the ground (including immediately after a block or player drop):
+-- 	If neither has ever been held:
+--		They can combine regardless, maxing at 9. The rest is swallowd--destroyed.
+-- 	If at least one has been held:
+--		They combine, but not maxing at 9: any remaining is kept in the second object.
+-- If one is held, with Z key:
+--		If they combine under the limit:
+--			The ground one is picked up into the held one.
+--		Else:
+--			The held one drops a single count, possibly combining on the ground.
+-- If one is held, with X key:
+-- 		All are dropped. They will combine as if on ground (because they will be).
+
 
 function canCombineBecauseCorrectTypes( a, b )
 	assert( a and b )
@@ -920,12 +932,9 @@ function canCombineOnGround( a, b )
 	assert( a and b )
 	return not a.held and not b.held
 		   and canCombineBecauseCorrectTypes( a, b )
-		   and
-				(canCombineBecauseUnderLimit( a, b )
-					or ( not hasBeenPlayerHeld( a ) and not hasBeenPlayerHeld( b ) ))
 end
 
-function canCombineForHolding( a,b )
+function canCombineForHolding( a, b )
 	return canCombineBecauseCorrectTypes( a, b )
 			and canCombineBecauseUnderLimit( a, b )
 end
@@ -937,14 +946,17 @@ function combineResources( a, b )
 
 	a.count = math.min( total, RESOURCE_MAX_COUNT_DEFAULT )
 
-	deleteActor( b )
+	local remaining = total - a.count
+	if remaining == 0 then
+		actorSnapTo( a, b.pos )
+		deleteActor( b )
+	else
+		b.count = remaining
+	end
 end
 
 function onResourcesCollide( a, b )
 	if canCombineOnGround( a, b ) then
-		a.pos:set( b.pos )
-		a.lastPos:set( a.pos )
-		a.vel:set( 0 )
 		combineResources( a, b )
 	end
 end
@@ -2840,6 +2852,12 @@ function actorAgeTicks( actor )
 	return ticks - actor.birthTicks
 end
 
+function actorSnapTo( actor, p )
+	actor.pos:set( p )
+	actor.lastPos:set( actor.pos )
+	actor.vel:set( 0 )
+end
+
 function actorDrawBounds()
 	local bounds = viewBounds()
 	assert( ACTOR_DRAW_MARGIN )
@@ -2887,9 +2905,15 @@ end
 
 function populateWithActors()
 
-	-- createActor( 'chip', 10 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
-	-- createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
-	-- createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+	for i = 1,9 do
+		createActor( 'chip', 10 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+	end
+	for i = 1,5 do
+		createActor( 'chip', 11 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+	end
+	for i = 1,5 do
+		createActor( 'chip', 11 * PIXELS_PER_TILE, 22 * PIXELS_PER_TILE )
+	end
 end
 
 function startGame()

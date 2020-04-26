@@ -39,6 +39,7 @@
         "blockConfigs"
     ],
     "Lua.diagnostics.disable": [
-        "unused-local"
+        "unused-local",
+        "lowercase-global"
     ]
 }
