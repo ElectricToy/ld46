@@ -822,6 +822,9 @@ function onButton1()
 end
 
 function onButton2()
+	-- TODO!!!
+	onRobotCompletedAllRecipes()
+
 	-- try to drop.
 	if player.heldItem ~= nil then
 		tryDropHeldItem( { preferDropAll = true } ) -- forcing drop
@@ -864,7 +867,7 @@ function updateInput( actor )
 	-- Update joystick thrust
 	local joyThrust = vec2:new( joy( 0 ), joy( 1 ))
 
-	if joyThrust:lengthSquared() > 0 then
+	if joyThrust:lengthSquared() > 0.1 then
 		worldState.moved = true
 	end
 
@@ -1027,6 +1030,7 @@ function onRobotCompletedAllRecipes()
 	if not worldState.gameWon then
 		worldState.gameWon = true
 		worldState.gameOverStartTime = realTicks
+		worldState.finalGameTicks = ticks
 		sfx( 'win', 0.75 )
 		music( '' )
 	end
@@ -2407,7 +2411,7 @@ function blockDeleteSponsored( x, y )
 	end
 end
 
-CONVEYOR_EXPLANATION = { 'When placing, direction', "depends on", "which way you're moving." }
+CONVEYOR_EXPLANATION = { "Moves things." }
 SENSOR_EXPLANATION = { 'Detects items.', 'Triggers Conveyors.' }
 HARVESTER_EXPLANATION = 'Gathers resources.'
 COMBINER_EXPLANATION = { 'Makes items and blocks.' }
@@ -2951,7 +2955,9 @@ function startGame()
 
 	music( 'ld46', 0.2 )
 
-	worldState = {}
+	worldState = {
+		startGameTicks = ticks,
+	}
 
 	blockData = {}
 
@@ -3166,9 +3172,9 @@ function drawInstructions()
 	end
 
 	if not worldState.pickedUp then
-		printCentered( 'Z and X TO PICK UP', screen_wid() // 2, screen_hgt() - (16+10), WHITE, printShadowed )
-		printCentered( 'AND PLACE THINGS.', screen_wid() // 2, screen_hgt() - (16), WHITE, printShadowed )
-
+		local msgColor = worldState.moved and BRIGHT_RED or WHITE
+		printCentered( 'Z and X TO PICK UP', screen_wid() // 2, screen_hgt() - (16+10), msgColor, printShadowed )
+		printCentered( 'AND PLACE THINGS.', screen_wid() // 2, screen_hgt() - (16), msgColor, printShadowed )
 	end
 end
 
@@ -3192,19 +3198,21 @@ end
 
 function drawPlayAgain( x )
 	if pressToRestartAvailable() then
-		printCentered( 'PLAY AGAIN!', x, screen_hgt() - 30, WHITE, printShadowed )
-		printCentered( '[X]', x, screen_hgt() - 20, WHITE, printShadowed )
+		printCentered( 'PLAY AGAIN!', x, screen_hgt() - 26, BRIGHT_RED, printShadowed )
+		printCentered( '[X]', x, screen_hgt() - 16, WHITE, printShadowed )
 	end
 end
 
 function drawGameWon()
 	camera( 0, 0 )
-	local midX = screen_wid() / 2
-	printCentered( 'YOU WON!', midX, 24, BRIGHT_RED, printShadowed )
-	printCentered( 'You Kept ' .. ROBOT_NAME .. ' Alive', midX, 40, WHITE, printShadowed )
-	printCentered( 'and helped him get fixed!', midX, 50, WHITE, printShadowed )
+	local midX = screen_wid() // 2
+	local midY = screen_hgt() // 2
+	printCentered( 'YOU WON!', midX, 16, BRIGHT_RED, printShadowed )
+	printCentered( 'You Kept ' .. ROBOT_NAME .. ' Alive', midX, 32, WHITE, printShadowed )
+	printCentered( 'and helped him get fixed!', midX, 42, WHITE, printShadowed )
 
-	printCentered( 'and helped him get fixed!', midX, 50, WHITE, printShadowed )
+	printCentered( 'You won in:', midX, midY + 4, BRIGHT_RED, printShadowed )
+	printCentered( '' .. ( worldState.finalGameTicks - worldState.startGameTicks ) // 3600 .. ' minutes', midX, midY + 14, WHITE, printShadowed )
 
 	drawPlayAgain( midX )
 end
