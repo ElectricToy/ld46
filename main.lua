@@ -135,7 +135,7 @@ end
 
 -- Configuration
 
-support_virtual_trackball( true )
+-- support_virtual_trackball( true )
 text_scale( 1 )
 filter_mode( "Nearest" )
 
