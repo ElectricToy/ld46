@@ -135,10 +135,11 @@ end
 
 -- Configuration
 
+support_virtual_trackball( true )
 text_scale( 1 )
 filter_mode( "Nearest" )
 
-screen_size( 220, 128 )
+screen_size( 220, 0 )
 
 local WHITE = 0xFFE3E0F2
 local BRIGHT_RED = 0xFFC23324
@@ -825,6 +826,8 @@ function updateInput( actor )
 
 	local thrust = vec2:new()
 
+	-- Update button thrust
+
 	if btn( 0 ) then
 		worldState.moved = true
 		thrust.x = thrust.x - 1
@@ -845,9 +848,24 @@ function updateInput( actor )
 		thrust.y = thrust.y + 1
 	end
 
-	thrust = thrust:normal() * actor.config.maxThrust
+	thrust = thrust:normal()
 
-	actorControlThrust( actor, thrust )
+	-- Update joystick thrust
+	local joyThrust = vec2:new( joy( 0 ), joy( 1 ))
+
+	if joyThrust:lengthSquared() > 0 then
+		worldState.moved = true
+	end
+
+	thrust = thrust + joyThrust
+
+	if thrust:lengthSquared() > 1.0 then
+		thrust = thrust:normal()
+	end
+
+	actorControlThrust( actor, thrust * actor.config.maxThrust )
+
+	-- Update other buttons
 
 	if btnp( 4 ) then
 		onButton1()
