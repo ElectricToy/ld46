@@ -966,7 +966,6 @@ function combineResources( a, b )
 
 	local remaining = total - a.count
 	if remaining == 0 then
-		actorSnapTo( a, b.pos )
 		deleteActor( b )
 	else
 		b.count = remaining
@@ -975,6 +974,7 @@ end
 
 function onResourcesCollide( a, b )
 	if canCombineOnGround( a, b ) then
+		actorSnapTo( a, b.pos )
 		combineResources( a, b )
 	end
 end
@@ -2871,6 +2871,8 @@ function actorAgeTicks( actor )
 end
 
 function actorSnapTo( actor, p )
+	assert( actor )
+	assert( p )
 	actor.pos:set( p )
 	actor.lastPos:set( actor.pos )
 	actor.vel:set( 0 )
