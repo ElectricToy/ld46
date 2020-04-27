@@ -56,6 +56,16 @@ function tableCopy( t )
 	return setmetatable(u, getmetatable(t))
 end
 
+function tableFilter( tab, fn )
+	local result = {}
+	for _, value in ipairs( tab ) do
+		if fn( value ) then
+			table.insert( result, value )
+		end
+	end
+	return result
+end
+
 local debugCircles = {}
 local debugMessages = {}
 
@@ -135,7 +145,7 @@ end
 
 -- Configuration
 
--- support_virtual_trackball( true )
+support_virtual_trackball( true )
 text_scale( 1 )
 filter_mode( "Nearest" )
 
@@ -144,6 +154,7 @@ screen_size( 220, 0 )
 local WHITE = 0xFFE3E0F2
 local BRIGHT_RED = 0xFFC23324
 local LIGHT_GRAY = 0xFFB0B8BF
+local BRIGHT_BLUE = 0xFF0466c2
 
 
 -- GLOBALS
@@ -678,7 +689,7 @@ function playerTryPlaceAsBlock( item, direction, position )
 	return placementX, placementY
 end
 
-DEFAULT_ARM_LENGTH = 2
+DEFAULT_ARM_LENGTH = 4
 
 function tryDropHeldItem( options )
 
@@ -3026,23 +3037,53 @@ end
 
 function drawBlockRecipes( blockType )
 
-	local y = 26
+	local TOP_Y = 30
+	local ROW_STEP = 20
+	local PADDING_HORIZ = 8
+	local PADDING_BOTTOM = PADDING_HORIZ
+	local GUTTER = 16
+
+	local nTotalRows = #tableFilter( blockType.recipes, function( recipe ) return recipe.output ~= nil end )
+	local totalTableHeight = nTotalRows * ROW_STEP
+	local availableHeight = screen_hgt() - TOP_Y - PADDING_BOTTOM
+
+	local nNeededCols = math.ceil( totalTableHeight / availableHeight )
+
+	local columnWidth = ( screen_wid() - PADDING_HORIZ*2 ) // nNeededCols
+	local columnLeft = PADDING_HORIZ
+	local y = TOP_Y
 	for _, recipe in ipairs( blockType.recipes ) do
 		if recipe.output ~= nil then
-			local x = drawIngredientList( recipe.output, 10, y ) + 2
+			local x = drawIngredientList( recipe.output, columnLeft, y )
+
+			x = x + 2
 
 			printShadowed( '<=', x, y + RECIPE_TEXT_OFFSET_Y, RECIPE_TEXT_COLOR )
-			x = x + 14
+			x = x + 16
 
 			drawIngredientList( recipe.inputs, x, y )
 
-			y = y + 17
+			y = y + ROW_STEP
+
+			if y + ROW_STEP >= screen_hgt() - PADDING_BOTTOM then
+				y = TOP_Y
+				columnLeft = columnLeft + columnWidth + GUTTER
+			end
 		end
 	end
 end
 
 function printShadowed( text, x, y, color, shadowColor )
 	print( text, x, y+1, shadowColor or 0xFF161C21 )
+	print( text, x, y, color )
+end
+
+function printOutlined( text, x, y, color, outlineColor )
+	outlineColor = outlineColor or WHITE
+	print( text, x+1, y  , outlineColor )
+	print( text, x-1, y  , outlineColor )
+	print( text, x  , y+1, outlineColor )
+	print( text, x  , y-1, outlineColor )
 	print( text, x, y, color )
 end
 
@@ -3059,7 +3100,7 @@ function drawHUDBlockInfo()
 			local name = blockTypeBase.name
 			if name ~= nil and name ~= '' then
 				name = name .. ( blockTypeBase.harvestSource ~= nil and ' - use Harvester' or '' )
-				printShadowed( name or '', textX, textY, BRIGHT_RED )
+				printOutlined( name or '', textX, textY, BRIGHT_RED, WHITE )
 				textY = textY + 10
 
 				if type( blockTypeBase.explanation ) == 'table' then
@@ -3151,8 +3192,8 @@ end
 
 function drawPlayAgain( x )
 	if pressToRestartAvailable() then
-		printCentered( 'PLAY AGAIN!', x, 90, WHITE, printShadowed )
-		printCentered( '[X]', x, 100, WHITE, printShadowed )
+		printCentered( 'PLAY AGAIN!', x, screen_hgt() - 30, WHITE, printShadowed )
+		printCentered( '[X]', x, screen_hgt() - 20, WHITE, printShadowed )
 	end
 end
 
@@ -3161,6 +3202,8 @@ function drawGameWon()
 	local midX = screen_wid() / 2
 	printCentered( 'YOU WON!', midX, 24, BRIGHT_RED, printShadowed )
 	printCentered( 'You Kept ' .. ROBOT_NAME .. ' Alive', midX, 40, WHITE, printShadowed )
+	printCentered( 'and helped him get fixed!', midX, 50, WHITE, printShadowed )
+
 	printCentered( 'and helped him get fixed!', midX, 50, WHITE, printShadowed )
 
 	drawPlayAgain( midX )
@@ -3216,7 +3259,7 @@ function drawDialogue()
 		y = y + 12
 	end
 
-	printCentered( '[X] or [Z] to continue', midX, 100, BRIGHT_RED, printShadowed )
+	printCentered( '[X] or [Z] to continue', midX, screen_hgt() - 20, BRIGHT_RED, printShadowed )
 end
 
 TITLE_FADE_DURATION_SECS = 3
