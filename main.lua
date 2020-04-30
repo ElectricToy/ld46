@@ -822,9 +822,6 @@ function onButton1()
 end
 
 function onButton2()
-	-- TODO!!!
-	onRobotCompletedAllRecipes()
-
 	-- try to drop.
 	if player.heldItem ~= nil then
 		tryDropHeldItem( { preferDropAll = true } ) -- forcing drop
