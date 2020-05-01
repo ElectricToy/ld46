@@ -66,6 +66,20 @@ function tableFilter( tab, fn )
 	return result
 end
 
+local MUTE_SOUND = false
+
+function sfxm( sound, gain )
+	if not MUTE_SOUND then
+		sfx( sound, gain )
+	end
+end
+
+function musicm( sound, gain )
+	if not MUTE_SOUND or #sound == 0 then
+		music( sound, gain )
+	end
+end
+
 local debugCircles = {}
 local debugMessages = {}
 
@@ -683,7 +697,7 @@ function playerTryPlaceAsBlock( item, direction, position )
 		end
 
 		createActor( 'placement_poof', placementX * PIXELS_PER_TILE, placementY * PIXELS_PER_TILE )
-		sfx( 'drop_block' )
+		sfxm( 'drop_block' )
 	end
 
 	return placementX, placementY
@@ -717,7 +731,7 @@ function tryDropHeldItem( options )
 	if not placed then
 		-- try to place as an item
 
-		sfx( 'drop_item' )
+		sfxm( 'drop_item' )
 
 		-- does this item have count?
 		if not options.preferDropAll and (( item.count or 1 ) > 1 ) then
@@ -740,7 +754,7 @@ function tryPickupActor( byActor )
 		if pickupActor == byActor or pickupActor == nil then return nil end
 
 		if byActor.heldItem == nil or canCombineForHolding( pickupActor, byActor.heldItem ) then
-			sfx( 'lift' )
+			sfxm( 'lift' )
 			worldState.pickedUp = true
 
 			if byActor.heldItem ~= nil then
@@ -777,7 +791,7 @@ function tryPickupBlock( byActor )
 			if pickupActor and ( byActor.heldItem == nil or canCombineForHolding( pickupActor, byActor.heldItem )) then
 
 				createActor( 'pickup_particles', blockX * PIXELS_PER_TILE + 8, blockY * PIXELS_PER_TILE + 16 )
-				sfx( 'lift' )
+				sfxm( 'lift' )
 				worldState.pickedUp = true
 
 				if byActor.heldItem ~= nil then
@@ -1018,8 +1032,8 @@ function onRobotOutOfFuel( actor )
 		worldState.gameOverStartTime = realTicks
 		color_multiplied_g = 0
 		color_multiplied_b = 0
-		music( '' )
-		sfx( 'fail' )
+		musicm( '' )
+		sfxm( 'fail' )
 	end
 end
 
@@ -1028,8 +1042,8 @@ function onRobotCompletedAllRecipes()
 		worldState.gameWon = true
 		worldState.gameOverStartTime = realTicks
 		worldState.finalGameTicks = ticks
-		sfx( 'win', 0.75 )
-		music( '' )
+		sfxm( 'win', 0.75 )
+		musicm( '' )
 	end
 end
 
@@ -1064,7 +1078,7 @@ function playerFootstepFrames( start )
 		frames[ i ] = {
 			frame = start + i,
 			event = ( i == 1 or i == 5 ) and function( actor )
-				sfx( 'footstep' .. randInt( 1, 3 ), 0.25 )
+				sfxm( 'footstep' .. randInt( 1, 3 ), 0.25 )
 			end
 				or nil
 		}
@@ -2001,7 +2015,7 @@ function blockStartRecipe( x, y, blockType, blockTypeIndex, recipe, availableIng
 	end
 
 	createActor( 'consume_particles', x * PIXELS_PER_TILE, y * PIXELS_PER_TILE )
-	sfx( 'consume', 0.5 )
+	sfxm( 'consume', 0.5 )
 
 	-- cook
 	local data = dataForBlockAt( x, y )
@@ -2108,7 +2122,7 @@ end
 local DEFAULT_HARVEST_RATE = 5
 
 function onBlockRanOutOfCapacity( x, y, blockType, blockTypeIndex )
-	sfx( 'source_exhausted', 0.2 )
+	sfxm( 'source_exhausted', 0.2 )
 
 	color_multiplied_r_smoothed = 0.5
 	color_multiplied_g_smoothed = 0.75
@@ -2151,7 +2165,7 @@ function harvesterDoHarvest( harvestSource, x, y, blockType, blockTypeIndex, nei
 	local creationPosition = creationPositionFromBlockAt( x, y )
 
 	createActor( harvestSource, creationPosition.x, creationPosition.y )
-	sfx( 'produce', 0.5 )
+	sfxm( 'produce', 0.5 )
 	createActor( 'produce_particles', x * PIXELS_PER_TILE, y * PIXELS_PER_TILE )
 end
 
@@ -2260,7 +2274,7 @@ function updateFuelGuage()
 
 	if guageFlashSpeed > 0 and ( ticks % guageFlashSpeed ) == 0 then
 		guage.flashBrightness = 1
-		sfx( 'warning', 0.20 )
+		sfxm( 'warning', 0.20 )
 	end
 end
 
@@ -2295,7 +2309,7 @@ function robotOnWood( x, y, blockType, blockTypeIndex )
 	guage.flashBrightness = 1
 	robot.additiveColor = 0xFFFFFF00
 
-	sfx( 'eat_wood' )
+	sfxm( 'eat_wood' )
 
 	if robot.recipeSequence == nil or robot.recipeSequence == 1 then
 		robot.recipeSequence = 1
@@ -2306,22 +2320,22 @@ end
 function robotOnIron( x, y, blockType, blockTypeIndex )
 	-- trace( 'robotOnIron' )
 	robotOnCompletedRecipe()
-	sfx( 'finish_robot_recipe' )
+	sfxm( 'finish_robot_recipe' )
 end
 function robotOnConveyor( x, y, blockType, blockTypeIndex )
 	-- trace( 'robotOnConveyor' )
 	robotOnCompletedRecipe()
-	sfx( 'finish_robot_recipe' )
+	sfxm( 'finish_robot_recipe' )
 end
 function robotOnSensor( x, y, blockType, blockTypeIndex )
 	-- trace( 'robotOnSensor' )
 	robotOnCompletedRecipe()
-	sfx( 'finish_robot_recipe' )
+	sfxm( 'finish_robot_recipe' )
 end
 function robotOnChip( x, y, blockType, blockTypeIndex )
 	-- trace( 'robotOnChip' )
 	robotOnCompletedRecipe()
-	sfx( 'finish_robot_recipe' )
+	sfxm( 'finish_robot_recipe' )
 end
 
 ROBOT_NAME = '@73N'
@@ -2732,13 +2746,13 @@ function updateBlocks()
 end
 
 function speechSound()
-	sfx( 'speech' .. math.floor( randInt( 2, 4 )), 0.75 )
+	sfxm( 'speech' .. math.floor( randInt( 2, 4 )), 0.75 )
 end
 
 function onRobotFound()
 	if not worldState.robotFound then
 		worldState.robotDialoguing = true
-		sfx( 'speech3', 0.75 )
+		sfxm( 'speech3', 0.75 )
 	end
 end
 
@@ -2950,7 +2964,7 @@ end
 
 function startGame()
 
-	music( 'ld46', 0.2 )
+	musicm( 'ld46', 0.2 )
 
 	worldState = {
 		startGameTicks = ticks,
