@@ -460,6 +460,14 @@ function expandContractRect( rect, expansion )
 	return rect
 end
 
+function headingToDirectionName( direction )
+	if direction == 0 then return 'north'
+	elseif direction == 1 then return 'east'
+	elseif direction == 2 then return 'south'
+	elseif direction == 3 then return 'west'
+	else return nil end
+end
+
 function sprite_by_grid( x, y )
 	return y // TILES_X + x
 end
@@ -627,13 +635,13 @@ end
 
 function findPickupActorNear( forActor, x, y, radius )
 	return closestActorTo( x, y, radius, function( actor, distSquared )
-		return not actor.held and actor.config.mayBePickedUp and actor ~= forActor
+		return actor.holder == nil and actor.config.mayBePickedUp and actor ~= forActor
 	end)
 end
 
-function makeHeld( item )
+function makeHeld( item, holder )
 	item.wasEverHeld = true
-	item.held = true
+	item.holder = holder
 	item.inert = true
 	item.nonColliding = true
 	item.z = 0
@@ -646,7 +654,7 @@ function makeHeld( item )
 end
 
 function makeNotHeld( item, dropPoint )
-	item.held = false
+	item.holder = nil
 	actorSnapTo( item, dropPoint )
 	item.lastPlayerPlacedPos = vec2:new( item.pos )
 	item.ulOffset = nil
@@ -762,7 +770,7 @@ function tryPickupActor( byActor )
 			if byActor.heldItem ~= nil then
 				combineResources( byActor.heldItem, pickupActor )
 			else
-				makeHeld( pickupActor )
+				makeHeld( pickupActor, player )
 				byActor.heldItem = pickupActor
 			end
 
@@ -799,7 +807,7 @@ function tryPickupBlock( byActor )
 				if byActor.heldItem ~= nil then
 					combineResources( byActor.heldItem, pickupActor )
 				else
-					makeHeld( pickupActor )
+					makeHeld( pickupActor, player )
 					pickupActor.pos = creationPos + actorULOffset( pickupActor )
 					byActor.heldItem = pickupActor
 				end
@@ -980,7 +988,7 @@ end
 
 function canCombineOnGround( a, b )
 	assert( a and b )
-	return not a.held and not b.held
+	return a.holder == nil and b.holder == nil
 		   and canCombineBecauseCorrectTypes( a, b )
 end
 
@@ -1016,7 +1024,7 @@ function wouldNewItemBeSwallowedNear( position, newActorType, itemsToAdd )
 
 	assert( position and newActorType )
 	local actorThere = closestActorTo( position.x, position.y, 8, function( actor )
-		return not actor.held and actor.configKey == newActorType
+		return actor.holder == nil and actor.configKey == newActorType
 	end)
 
 	return actorThere ~= nil and ((( actorThere.count or 1 ) + itemsToAdd > RESOURCE_MAX_COUNT_DEFAULT )
@@ -1243,7 +1251,17 @@ actorConfigurations = {
 		tileSizeY = 1,
 		animations = {
 			idle = { speed = 0, frames = { 261 }},
+			idle_north = { speed = 0, frames = { 261 }},
+			idle_east = { speed = 0, frames = { 261+32 }},
+			idle_south = { speed = 0, frames = { 261+32*2 }},
+			idle_west = { speed = 0, frames = { 261+32*3 }},
 		},
+		amendAnimName = function( actor, animName )
+			if actor.holder and actor.holder.heading then
+				return animName .. '_' .. headingToDirectionName( actor.holder.heading:cardinalDirection() )
+			end
+			return animName
+		end
 	},
 	oven = {
 		mayBePickedUp = true,
@@ -1653,12 +1671,10 @@ function drawActorCount( actor )
 end
 
 function drawActor( actor )
-	local abortDraw = false
 	if actor.config.draw ~= nil then
-		abortDraw = actor.config.draw( actor )
+		local abortDraw = actor.config.draw( actor )
+		if abortDraw then return end
 	end
-
-	if abortDraw then return end
 
 	local animation = currentAnimation( actor )
 	if animation == nil then return end
@@ -2077,7 +2093,7 @@ function blockCheckRecipes( x, y, blockType, blockTypeIndex )
 	local availableIngredients = {}
 
 	eachNearbyActorToPos( tileCenterToWorldPos( x, y ), 16, function( actor )
-		if not actor.held then
+		if actor.holder == nil then
 			if availableIngredients[ actor.configKey ] == nil then
 				availableIngredients[ actor.configKey ] = {}
 			end
@@ -2242,7 +2258,7 @@ end
 function sensorTick( x, y, blockType, blockTypeIndex, triggerIfSensed, toTypeIfTriggered )
 	local sensedActor = nil
 	forEachActorOnBlock( x, y - 1, function( actor )
-		if  not actor.held and
+		if  actor.holder == nil and
 			actor ~= player and
 			actor.shadowHost == nil and
 			not actor.config.invisibleToSensors then
@@ -2943,7 +2959,7 @@ function drawActors()
 	-- count occluders
 	local numOccludingActors = 0
 	for _, actor in ipairs( drawnActors ) do
-		actor.occluding = actor.config.fadeForPlayer and not actor.held and actorOccludesPlayer( actor )
+		actor.occluding = actor.config.fadeForPlayer and actor.holder == nil and actorOccludesPlayer( actor )
 		if actor.occluding then
 			numOccludingActors = numOccludingActors + 1
 		end
