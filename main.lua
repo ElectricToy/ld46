@@ -37,6 +37,34 @@ function tableStringValues( tab )
 	return str
 end
 
+function stringify( o )
+	if type( o ) == 'table' then
+		return saveTable( o )
+	elseif type( o ) == 'string' then
+		return '"' .. o .. '"'
+	elseif type( o ) == 'boolean' then
+		return boolToString( o )
+	elseif type( o ) == 'function' then
+		return '<function>'
+	else
+		return '' .. o
+	end
+end
+
+function saveTable( tab )
+	local str = '{'
+	for key, value in pairs( tab ) do
+		str = str .. key .. '=' .. stringify( value ) .. ','
+	end
+	str = str .. '}'
+
+	return str
+end
+
+function restoreTable( tab, string )
+	-- TODO
+end
+
 function tableFind( tab, element )
     for index, value in pairs(tab) do
         if value == element then
@@ -52,7 +80,9 @@ end
 
 function tableCopy( t )
 	local u = {}
-	for k, v in pairs(t) do u[k] = v end
+	for k, v in pairs(t) do
+		u[k] = v
+	end
 	return setmetatable(u, getmetatable(t))
 end
 
@@ -1441,6 +1471,12 @@ ACTOR_CONFIGS = {
 function createShadowForActor( actor )
 	actor.shadow = createActor( 'shadow', actor.pos.x, actor.pos.y )
 	actor.shadow.shadowHost = actor
+end
+
+function actorMemento( actor )
+	local memento = tableCopy( actor )
+	memento.config = nil
+	return memento
 end
 
 function deleteActor( actor )
@@ -3491,15 +3527,52 @@ end
 -- reportResourceNeeds()
 
 function save()
-	world.ticks = ticks
-	world.realTicks = realTicks
+	local memento = {}
 
+	memento.ticks = ticks
+	memento.realTicks = realTicks
+	memento.startGameTicks = world.startGameTicks
+	memento.robotFound = world.robotFound
 
+	memento.actors = {}
+
+	for i, actor in ipairs( world.actors ) do
+		memento.actors[ i ] = actorMemento( actor )
+
+		if actor == world.player then memento.iPlayer = i end
+		if actor == world.robot then memento.iRobot = i end
+	end
+
+	memento.blockData = {}
+	for i, blockData in ipairs( world.blockData ) do
+		memento.blockData[ i ] = blockData
+	end
+	
+	return saveTable( memento )
 end
 
-function load( memento )
-	trace( 'load' )
+function load( mementoString )
+	-- trace( 'load' )
 
-	ticks = world.ticks or ticks
-	realTicks = world.realTicks or realTicks
+	-- local memento = restoreTable( mementoString )
+
+	-- ticks = memento.ticks or ticks
+	-- realTicks = memento.realTicks or realTicks
+	-- world.startGameTicks = memento.startGameTicks
+	-- world.robotFound = memento.robotFound
+
+	-- world.actors = {}
+
+	-- for i, actorMemento in ipairs( memento.actors ) do
+	-- 	world.actors[ i ] = restoreActorMemento( actorMemento )
+	-- end
+
+	-- world.player = world.actors[ memento.iPlayer ]
+	-- world.robot = world.actors[ memento.iRobot ]
+
+	-- world.blockData = {}
+
+	-- for i, blockData in ipairs( memento.blockData ) do
+	-- 	world.blockData[ i ] = blockData
+	-- end
 end
