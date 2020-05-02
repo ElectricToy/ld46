@@ -40,7 +40,8 @@
         "support_virtual_trackball",
         "joy",
         "touchupx",
-        "touchx"
+        "touchx",
+        "show_controls_guides"
     ],
     "Lua.diagnostics.disable": [
         "unused-local",

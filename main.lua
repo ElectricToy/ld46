@@ -727,6 +727,8 @@ function tryDropHeldItem( options )
 		placed = placementX ~= nil
 	end
 
+	worldState.dropped = true
+
 	-- failed?
 	if not placed then
 		-- try to place as an item
@@ -897,6 +899,11 @@ function updateInput( actor )
 	end
 	if btnp( 5 ) then
 		onButton2()
+	end
+
+	if worldState.moved and worldState.pickedUp and worldState.dropped and not worldState.completedControls then
+		worldState.completedControls = true
+		show_controls_guides( false )
 	end
 end
 
@@ -2753,6 +2760,7 @@ function onRobotFound()
 	if not worldState.robotFound then
 		worldState.robotDialoguing = true
 		sfxm( 'speech3', 0.75 )
+		show_controls_guides( true )
 	end
 end
 
@@ -2785,6 +2793,7 @@ function pressToRestart()
 	if pressToRestartAvailable() then
 		if btnp( 4 ) or btnp( 5 ) then
 			startGame()
+			show_controls_guides( false )
 		end
 	end
 end
@@ -2804,6 +2813,8 @@ end
 
 function updateDialogue()
 	if btnp( 4 ) or btnp( 5 ) then
+		show_controls_guides( false )
+
 		worldState.dialogueStep = worldState.dialogueStep + 1
 
 		if worldState.dialogueStep > #dialogue then
@@ -3211,6 +3222,7 @@ function drawPlayAgain( x )
 	if pressToRestartAvailable() then
 		printCentered( 'PLAY AGAIN!', x, screen_hgt() - 26, BRIGHT_RED, printShadowed )
 		printCentered( '[X]', x, screen_hgt() - 16, WHITE, printShadowed )
+		show_controls_guides( true )
 	end
 end
 
