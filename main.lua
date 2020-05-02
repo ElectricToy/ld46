@@ -66,6 +66,16 @@ function tableFilter( tab, fn )
 	return result
 end
 
+function boolToString( b )
+	return b and 'true' or 'false'
+end
+
+local physicalButtonsPressed = false
+function showControlsGuides( show )
+	show_controls_guides( show and not physicalButtonsPressed )
+end
+
+
 local MUTE_SOUND = false
 
 function sfxm( sound, gain )
@@ -97,7 +107,7 @@ function drawDebug()
 	-- print( tostring( mousex ) .. ',' .. tostring( mousey ) .. '::' .. tostring( placeableRoom ))
 	-- print( tostring( world.focusX ) .. ',' .. tostring( world.focusY ))
 
-	-- print( 'actors: ' .. tostring( #actors ), 0, 0 )
+	-- print( 'actors: ' .. tostring( #world.actors ), 0, 0 )
 
 	for _,message in ipairs( debugMessages ) do
 		print( message )
@@ -480,7 +490,7 @@ function range( from, to, step )
 	return arr
 end
 
-local initialMap = {}
+local initialMap = {}	-- TODO!!! save with world?
 
 function saveInitialMap()
 	initialMap = {}
@@ -505,9 +515,7 @@ function restoreInitialMap()
 	end
 end
 
-local actors = {}
-local blocksToActors = {}
-local worldState = {}
+local world = {}
 
 function actorCenter( actor )
 	return actor.pos - vec2:new( 0, actor.config.dims.y * 0.5 )
@@ -610,7 +618,7 @@ end
 function forEachActorNear( x, y, radius, callback )
 	local pos = vec2:new( x, y )
 	local rSquared = radius * radius
-	for _, actor in ipairs( actors ) do
+	for _, actor in ipairs( world.actors ) do
 		local distSquared = ( actor.pos - pos ):lengthSquared()
 		if distSquared <= rSquared then
 			callback( actor, distSquared )
@@ -662,7 +670,7 @@ function makeNotHeld( item, dropPoint )
 	item.inert = false
 	item.nonColliding = false
 	if item.shadow ~= nil then deleteActor( item.shadow ) end
-	player.heldItem = nil
+	world.player.heldItem = nil
 end
 
 
@@ -701,7 +709,7 @@ function playerTryPlaceAsBlock( item, direction, position )
 
 		-- succeeded
 		if item.deleted then
-			player.heldItem = nil
+			world.player.heldItem = nil
 		end
 
 		createActor( 'placement_poof', placementX * PIXELS_PER_TILE, placementY * PIXELS_PER_TILE )
@@ -715,7 +723,7 @@ DEFAULT_ARM_LENGTH = 4
 
 function tryDropHeldItem( options )
 
-	local item = player.heldItem
+	local item = world.player.heldItem
 	if not item then return end
 
 	options = options or {
@@ -725,17 +733,17 @@ function tryDropHeldItem( options )
 	-- If we're only holding one thing, nevermind about dropping "all".
 	options.preferDropAll = options.preferDropAll and ( item.count or 1 ) > 1
 
-	local dropPoint = placementPoint( player, DEFAULT_ARM_LENGTH )
+	local dropPoint = placementPoint( world.player, DEFAULT_ARM_LENGTH )
 
 	local placed = false
 
 	if not options.preferDropAll then
 		-- try to place as a block
-		local placementX, placementY = playerTryPlaceAsBlock( item, player.heading:cardinalDirection(), dropPoint )
+		local placementX, placementY = playerTryPlaceAsBlock( item, world.player.heading:cardinalDirection(), dropPoint )
 		placed = placementX ~= nil
 	end
 
-	worldState.dropped = true
+	world.dropped = true
 
 	-- failed?
 	if not placed then
@@ -765,12 +773,12 @@ function tryPickupActor( byActor )
 
 		if byActor.heldItem == nil or canCombineForHolding( pickupActor, byActor.heldItem ) then
 			sfxm( 'lift' )
-			worldState.pickedUp = true
+			world.pickedUp = true
 
 			if byActor.heldItem ~= nil then
 				combineResources( byActor.heldItem, pickupActor )
 			else
-				makeHeld( pickupActor, player )
+				makeHeld( pickupActor, world.player )
 				byActor.heldItem = pickupActor
 			end
 
@@ -802,12 +810,12 @@ function tryPickupBlock( byActor )
 
 				createActor( 'pickup_particles', blockX * PIXELS_PER_TILE + 8, blockY * PIXELS_PER_TILE + 16 )
 				sfxm( 'lift' )
-				worldState.pickedUp = true
+				world.pickedUp = true
 
 				if byActor.heldItem ~= nil then
 					combineResources( byActor.heldItem, pickupActor )
 				else
-					makeHeld( pickupActor, player )
+					makeHeld( pickupActor, world.player )
 					pickupActor.pos = creationPos + actorULOffset( pickupActor )
 					byActor.heldItem = pickupActor
 				end
@@ -834,11 +842,11 @@ end
 
 function onButton1()
 	-- Pickup, prefering actor.
-	if tryPickupActor( player ) == nil then
-		if tryPickupBlock( player ) == nil then
+	if tryPickupActor( world.player ) == nil then
+		if tryPickupBlock( world.player ) == nil then
 
 			-- Couldn't pickup. Drop?
-			if player.heldItem ~= nil then
+			if world.player.heldItem ~= nil then
 				tryDropHeldItem()
 			end
 		end
@@ -847,12 +855,12 @@ end
 
 function onButton2()
 	-- try to drop.
-	if player.heldItem ~= nil then
+	if world.player.heldItem ~= nil then
 		tryDropHeldItem( { preferDropAll = true } ) -- forcing drop
 	else
 		-- -- Pickup, prefering block.
-		-- if tryPickupBlock( player ) == nil then
-		-- 	tryPickupActor( player )
+		-- if tryPickupBlock( world.player ) == nil then
+		-- 	tryPickupActor( world.player )
 		-- end
 	end
 end
@@ -864,23 +872,31 @@ function updateInput( actor )
 	-- Update button thrust
 
 	if btn( 0 ) then
-		worldState.moved = true
+		world.moved = true
 		thrust.x = thrust.x - 1
+		physicalButtonsPressed = true
+		showControlsGuides( false )
 	end
 
 	if btn( 1 ) then
-		worldState.moved = true
+		world.moved = true
 		thrust.x = thrust.x + 1
+		physicalButtonsPressed = true
+		showControlsGuides( false )
 	end
 
 	if btn( 2 ) then
-		worldState.moved = true
+		world.moved = true
 		thrust.y = thrust.y - 1
+		physicalButtonsPressed = true
+		showControlsGuides( false )
 	end
 
 	if btn( 3 ) then
-		worldState.moved = true
+		world.moved = true
 		thrust.y = thrust.y + 1
+		physicalButtonsPressed = true
+		showControlsGuides( false )
 	end
 
 	thrust = thrust:normal()
@@ -889,7 +905,7 @@ function updateInput( actor )
 	local joyThrust = vec2:new( joy( 0 ), joy( 1 ))
 
 	if joyThrust:lengthSquared() > 0.1 then
-		worldState.moved = true
+		world.moved = true
 	end
 
 	thrust = thrust + joyThrust
@@ -909,9 +925,9 @@ function updateInput( actor )
 		onButton2()
 	end
 
-	if worldState.moved and worldState.pickedUp and worldState.dropped and not worldState.completedControls then
-		worldState.completedControls = true
-		show_controls_guides( false )
+	if world.moved and world.pickedUp and world.dropped and not world.completedControls then
+		world.completedControls = true
+		showControlsGuides( false )
 	end
 end
 
@@ -920,12 +936,12 @@ function updateViewTransform()
 
 	viewOffset.y = screen_hgt() / 2
 
-	-- local desiredViewPoint = ( player.pos - vec2:new( 0, 10 ) ) - viewOffset + player.vel * 32
+	-- local desiredViewPoint = ( world.player.pos - vec2:new( 0, 10 ) ) - viewOffset + world.player.vel * 32
 
 	-- if viewPoint == nil then viewPoint = desiredViewPoint end
 	-- viewPoint = lerp( viewPoint, desiredViewPoint, 0.05 )
 
-	local viewPoint = ( player.pos - vec2:new( 0, 10 ) ) - viewOffset
+	local viewPoint = ( world.player.pos - vec2:new( 0, 10 ) ) - viewOffset
 
 	setWorldView( viewPoint.x, viewPoint.y )
 end
@@ -952,8 +968,8 @@ function updateHeldItem( holder, item )
 end
 
 function updatePlayer( actor )
-	if player.heldItem then
-		updateHeldItem( player, player.heldItem )
+	if world.player.heldItem then
+		updateHeldItem( world.player, world.player.heldItem )
 	end
 end
 
@@ -961,7 +977,7 @@ end
 -- one has, and for situations where one item is on the ground and one is held.
 -- They must always, of course, be the same type.
 --
--- Both on the ground (including immediately after a block or player drop):
+-- Both on the ground (including immediately after a block or world.player drop):
 -- 	If neither has ever been held:
 --		They can combine regardless, maxing at 9. The rest is swallowd--destroyed.
 -- 	If at least one has been held:
@@ -1042,9 +1058,9 @@ MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY = FUEL_LOSS_PER_SECOND * 4
 MIN_FUEL_FOR_MAX_GUAGE_FLICKER = MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY + FUEL_LOSS_PER_SECOND * 6
 
 function onRobotOutOfFuel( actor )
-	if not worldState.gameLost then
-		worldState.gameLost = true
-		worldState.gameOverStartTime = realTicks
+	if not world.gameLost then
+		world.gameLost = true
+		world.gameOverStartTime = realTicks
 		color_multiplied_g = 0
 		color_multiplied_b = 0
 		musicm( '' )
@@ -1053,17 +1069,17 @@ function onRobotOutOfFuel( actor )
 end
 
 function onRobotCompletedAllRecipes()
-	if not worldState.gameWon then
-		worldState.gameWon = true
-		worldState.gameOverStartTime = realTicks
-		worldState.finalGameTicks = ticks
+	if not world.gameWon then
+		world.gameWon = true
+		world.gameOverStartTime = realTicks
+		world.finalGameTicks = ticks
 		sfxm( 'win', 0.75 )
 		musicm( '' )
 	end
 end
 
 function robotTick( actor )
-	if worldState.robotFound and not worldState.robotDialoguing then
+	if world.robotFound and not world.robotDialoguing then
 		actor.fuel = actor.fuel ~= nil and actor.fuel or actor.config.fuel
 		actor.fuel = actor.fuel - FUEL_LOSS_PER_TICK
 
@@ -1119,7 +1135,7 @@ function selfDeletingAnimFrames( start, count, step )
 	return frames
 end
 
-actorConfigurations = {
+ACTOR_CONFIGS = {
 	player = {
 		dims = vec2:new( 7, 13 ),
 		maxThrust = 0.35,
@@ -1181,7 +1197,7 @@ actorConfigurations = {
 			actor.capacity = capacity
 		end,
 		amendAnimName = function( self, animName )
-			local proportionalCapacity = clamp( proportion( self.capacity, 0, blockConfigs.tree_base.defaultCapacity ), 0, 1 )
+			local proportionalCapacity = clamp( proportion( self.capacity, 0, BLOCK_CONFIGS.tree_base.defaultCapacity ), 0, 1 )
 			local fullness = math.floor( round( lerp( 0, 3, proportionalCapacity )))
 
 			return animName .. '_' .. fullness
@@ -1440,11 +1456,11 @@ function deleteActor( actor )
 	actor.deleted = true
 	-- trace( 'deleted actor ' .. actor.configKey )
 
-	tableRemoveValue( actors, actor )
+	tableRemoveValue( world.actors, actor )
 end
 
 function createActor( configKey, x, y )
-	local config = actorConfigurations[ configKey ]
+	local config = ACTOR_CONFIGS[ configKey ]
 	assert( config )
 
 	local actor = {
@@ -1463,9 +1479,9 @@ function createActor( configKey, x, y )
 		occlusionOpacity = 1.0
 	}
 
-	table.insert( actors, actor )
+	table.insert( world.actors, actor )
 
-	-- trace( 'actors ' .. #actors)
+	-- trace( 'actors ' .. #world.actors)
 
 	return actor
 end
@@ -1625,10 +1641,10 @@ function updateAnimation( actor )
 end
 
 function actorOccludesPlayer( actor )
-	if player.pos.y > actor.pos.y then return false end
+	if world.player.pos.y > actor.pos.y then return false end
 
 	local myBounds = actorOccludingBounds( actor )
-	local playerBounds = expandContractRect( actorOccludingBounds( player ), 0 )
+	local playerBounds = expandContractRect( actorOccludingBounds( world.player ), 0 )
 
 	return rectsOverlap( myBounds, playerBounds )
 end
@@ -1784,9 +1800,9 @@ end
 
 function collideActors()
 
-	for i, actor in ipairs( actors ) do
-		if actor ~= player then
-			collideActorPair( player, actor )
+	for i, actor in ipairs( world.actors ) do
+		if actor ~= world.player then
+			collideActorPair( world.player, actor )
 		end
 	end
 end
@@ -1908,24 +1924,24 @@ function updateActor( actor )
 end
 
 function updateActorsOnBlocks()
-	blocksToActors = {}
+	world.blocksToActors = {}
 
-	for _, actor in ipairs( actors ) do
+	for _, actor in ipairs( world.actors ) do
 		local actorTileX = worldToTile( actor.pos.x )
 		local actorTileY = worldToTile( actor.pos.y )
 
 		local tileIndex = worldTilePosToIndex( actorTileX, actorTileY )
 
-		if blocksToActors[ tileIndex ] == nil then blocksToActors[ tileIndex ] = {} end
+		if world.blocksToActors[ tileIndex ] == nil then world.blocksToActors[ tileIndex ] = {} end
 
-		table.insert( blocksToActors[ tileIndex ], actor )
+		table.insert( world.blocksToActors[ tileIndex ], actor )
 	end
 end
 
 function updateActors()
 
-	for _, actor in ipairs( actors ) do
-		if not actors.deleted then
+	for _, actor in ipairs( world.actors ) do
+		if not actor.deleted then
 			updateActor( actor )
 		end
 	end
@@ -1933,11 +1949,11 @@ function updateActors()
 	-- collideActors()
 
 	-- clamp the player to the world
-	player.pos.x = clamp( player.pos.x, 16, WORLD_SIZE_PIXELS - 16 )
-	player.pos.y = clamp( player.pos.y, 16, WORLD_SIZE_PIXELS - 16 )
+	world.player.pos.x = clamp( world.player.pos.x, 16, WORLD_SIZE_PIXELS - 16 )
+	world.player.pos.y = clamp( world.player.pos.y, 16, WORLD_SIZE_PIXELS - 16 )
 end
 
-blockAnimSets = {
+BLOCK_ANIM_SETS = {
 	{ speed = 2, frames = range( 261, 264 ) },
 	{ speed = 2, frames = range( 265, 268 ) },
 	{ speed = 2, frames = range( 293, 293+3 ) },
@@ -1957,7 +1973,7 @@ end
 
 function forEachActorOnBlock( x, y, callback )
 	local tileIndex = worldTilePosToIndex( x, y )
-	local actors = blocksToActors[ tileIndex ]
+	local actors = world.blocksToActors[ tileIndex ]
 	if actors then
 		for _, actor in ipairs( actors ) do
 			if not actor.config.inert then
@@ -2259,7 +2275,7 @@ function sensorTick( x, y, blockType, blockTypeIndex, triggerIfSensed, toTypeIfT
 	local sensedActor = nil
 	forEachActorOnBlock( x, y - 1, function( actor )
 		if  actor.holder == nil and
-			actor ~= player and
+			actor ~= world.player and
 			actor.shadowHost == nil and
 			not actor.config.invisibleToSensors then
 			sensedActor = actor
@@ -2284,58 +2300,58 @@ function reportIfNil( label, value )
 	trace( label .. ' nil? ' .. ( value == nil and 'true' or 'false' ) )
 end
 
-local guage = {
+local gauge = {
 	flashBrightness = 1,
 }
 
 function updateFuelGuage()
-	if not worldState.robotFound then return end
+	if not world.robotFound then return end
 
-	guage.flashBrightness = lerp( guage.flashBrightness, 0.0, 0.1 )
+	gauge.flashBrightness = lerp( gauge.flashBrightness, 0.0, 0.1 )
 
-	local guageFlashSpeed = ( robot.fuel <= MIN_FUEL_FOR_MAX_GUAGE_FLICKER ) and 10 or ( robot.fuel <= MAX_FUEL_FOR_NEEDINESS and 60 or 0 )
+	local gaugeFlashSpeed = ( world.robot.fuel <= MIN_FUEL_FOR_MAX_GUAGE_FLICKER ) and 10 or ( world.robot.fuel <= MAX_FUEL_FOR_NEEDINESS and 60 or 0 )
 
-	if guageFlashSpeed > 0 and ( ticks % guageFlashSpeed ) == 0 then
-		guage.flashBrightness = 1
+	if gaugeFlashSpeed > 0 and ( ticks % gaugeFlashSpeed ) == 0 then
+		gauge.flashBrightness = 1
 		sfxm( 'warning', 0.20 )
 	end
 end
 
 function robotOnCompletedRecipe()
 
-	local recipes = blockConfigs.robot_base_off.recipes
+	local recipes = BLOCK_CONFIGS.robot_base_off.recipes
 
-	assert( robot.recipeSequence ~= nil )
-	assert( recipes[ robot.recipeSequence ] ~= nil )
+	assert( world.robot.recipeSequence ~= nil )
+	assert( recipes[ world.robot.recipeSequence ] ~= nil )
 
 	color_multiplied_r_smoothed = 1
 	color_multiplied_g_smoothed = 1
 	color_multiplied_b_smoothed = 0
 	barrel_smoothed = 0.5
 
-	if robot.recipeSequence > 1 then
-		recipes[ robot.recipeSequence ].enabled = false
+	if world.robot.recipeSequence > 1 then
+		recipes[ world.robot.recipeSequence ].enabled = false
 	end
 
-	robot.recipeSequence = robot.recipeSequence + 1
+	world.robot.recipeSequence = world.robot.recipeSequence + 1
 
-	if robot.recipeSequence > #recipes then
+	if world.robot.recipeSequence > #recipes then
 		onRobotCompletedAllRecipes()
 	else
-		recipes[ robot.recipeSequence ].enabled = true
+		recipes[ world.robot.recipeSequence ].enabled = true
 	end
 end
 
 function robotOnWood( x, y, blockType, blockTypeIndex )
 	-- trace( 'robotOnWood' )
-	robot.fuel = math.min( ROBOT_MAX_FUEL, robot.fuel + ROBOT_FUEL_PER_WOOD )
-	guage.flashBrightness = 1
-	robot.additiveColor = 0xFFFFFF00
+	world.robot.fuel = math.min( ROBOT_MAX_FUEL, world.robot.fuel + ROBOT_FUEL_PER_WOOD )
+	gauge.flashBrightness = 1
+	world.robot.additiveColor = 0xFFFFFF00
 
 	sfxm( 'eat_wood' )
 
-	if robot.recipeSequence == nil or robot.recipeSequence == 1 then
-		robot.recipeSequence = 1
+	if world.robot.recipeSequence == nil or world.robot.recipeSequence == 1 then
+		world.robot.recipeSequence = 1
 		robotOnCompletedRecipe()
 	end
 end
@@ -2403,10 +2419,10 @@ function robotBaseClass()
 			},
 		},
 		onPlaced = function( x, y, blockType, blockTypeIndex )
-			if robot == nil then
-				robot = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE + 22, ( y + 1 ) * PIXELS_PER_TILE - 1 )
-				robot.baseBlockPos = vec2:new( x, y )
-				robot.fuel = ROBOT_INITIAL_FUEL
+			if world.robot == nil then
+				world.robot = createActor( blockType.sponsoredActorConfig, ( x + 0.5 ) * PIXELS_PER_TILE + 22, ( y + 1 ) * PIXELS_PER_TILE - 1 )
+				world.robot.baseBlockPos = vec2:new( x, y )
+				world.robot.fuel = ROBOT_INITIAL_FUEL
 			end
 		end,
 		tick = function( x, y, blockType, blockTypeIndex )
@@ -2415,17 +2431,15 @@ function robotBaseClass()
 	}
 end
 
-blockData = {}
-
 function dataForBlockAt( x, y )
 	local index = worldTilePosToIndex( x, y )
-	if blockData[ index ] == nil then blockData[ index ] = {} end
-	return blockData[ index ]
+	if world.blockData[ index ] == nil then world.blockData[ index ] = {} end
+	return world.blockData[ index ]
 end
 
 function clearDataForBlockAt( x, y )
 	local index = worldTilePosToIndex( x, y )
-	blockData[ index ] = {}
+	world.blockData[ index ] = {}
 end
 
 function blockCreateSponsored( x, y, blockType, blockTypeIndex )
@@ -2451,7 +2465,7 @@ HARVESTER_EXPLANATION = 'Gathers resources.'
 COMBINER_EXPLANATION = { 'Makes items and blocks.' }
 OVEN_EXPLANATION = 'Turns ore into metal.'
 
-blockConfigs = {
+BLOCK_CONFIGS = {
 	ground = {
 		mayBePlacedUpon = true,
 	},
@@ -2508,7 +2522,7 @@ blockConfigs = {
 			},
 		},
 		tick = function( x, y, blockType, blockTypeIndex )
-			if worldState.robotFound then
+			if world.robotFound then
 				blockCheckRecipes( x, y, blockType, blockTypeIndex )
 			end
 		end,
@@ -2579,24 +2593,24 @@ blockConfigs = {
 	},
 }
 
-blockTypes = {
-	[261] = blockConfigs.conveyor,
+BLOCK_TYPES = {
+	[261] = BLOCK_CONFIGS.conveyor,
 	[261+4] = {
 		baseType = 261,
 	},
-	[261+32] = amendedObject( blockConfigs.conveyor, function( conveyor )
+	[261+32] = amendedObject( BLOCK_CONFIGS.conveyor, function( conveyor )
 		conveyor.conveyor = { direction = vec2:new( 1, 0 ) }
 	end),
 	[261+32+4] = {
 		baseType = 261+32,
 	},
-	[261+32*2] = amendedObject( blockConfigs.conveyor, function( conveyor )
+	[261+32*2] = amendedObject( BLOCK_CONFIGS.conveyor, function( conveyor )
 		conveyor.conveyor = { direction = vec2:new( 0, 1 ) }
 	end),
 	[261+32*2+4] = {
 		baseType = 261+32*2,
 	},
-	[261+32*3] = amendedObject( blockConfigs.conveyor, function( conveyor )
+	[261+32*3] = amendedObject( BLOCK_CONFIGS.conveyor, function( conveyor )
 		conveyor.conveyor = { direction = vec2:new( -1, 0 ) }
 	end),
 	[261+32*3+4] = {
@@ -2633,31 +2647,31 @@ blockTypes = {
 			blockUpdateCooking( x, y, blockType, blockTypeIndex )
 		end,
 	},
-	[515] = blockConfigs.combiner_off,
-	[516] = blockConfigs.combiner_on,
-	[517] = blockConfigs.sensor_off,
-	[518] = blockConfigs.sensor_on,
-	[519] = blockConfigs.harvester,
+	[515] = BLOCK_CONFIGS.combiner_off,
+	[516] = BLOCK_CONFIGS.combiner_on,
+	[517] = BLOCK_CONFIGS.sensor_off,
+	[518] = BLOCK_CONFIGS.sensor_on,
+	[519] = BLOCK_CONFIGS.harvester,
 
-	-- [288] = blockConfigs.robot_base_off,
-	[290] = blockConfigs.robot_base_on,
+	-- [288] = BLOCK_CONFIGS.robot_base_off,
+	[290] = BLOCK_CONFIGS.robot_base_on,
 
-	[480] = blockConfigs.tree_base,
-	[481] = blockConfigs.source_iron_ore,
-	[482] = blockConfigs.source_gold_ore,
-	[483] = blockConfigs.source_copper,
-	[484] = blockConfigs.source_stone,
-	[485] = blockConfigs.rubber_tree_base,
+	[480] = BLOCK_CONFIGS.tree_base,
+	[481] = BLOCK_CONFIGS.source_iron_ore,
+	[482] = BLOCK_CONFIGS.source_gold_ore,
+	[483] = BLOCK_CONFIGS.source_copper,
+	[484] = BLOCK_CONFIGS.source_stone,
+	[485] = BLOCK_CONFIGS.rubber_tree_base,
 }
 
 function setBlockTypeRange( config, start, count )
 	for i = start, start + count - 1 do
-		blockTypes[ i ] = config
+		BLOCK_TYPES[ i ] = config
 	end
 end
 
 function blockTypeForIndex( blockTypeIndex )
-	return blockTypes[ blockTypeIndex ]
+	return BLOCK_TYPES[ blockTypeIndex ]
 end
 
 function baseBlockTypeIndex( blockTypeIndex )
@@ -2700,24 +2714,24 @@ function forEachBlock( callback )
 end
 
 function fixupBlocks()
-	setBlockTypeRange( blockConfigs.ground, 256, 5 )
+	setBlockTypeRange( BLOCK_CONFIGS.ground, 256, 5 )
 
-	blockConfigs.robot_base_off = robotBaseClass()
-	blockTypes[ 288 ] = blockConfigs.robot_base_off
+	BLOCK_CONFIGS.robot_base_off = robotBaseClass()
+	BLOCK_TYPES[ 288 ] = BLOCK_CONFIGS.robot_base_off
 
 
-	for _, animSet in pairs( blockAnimSets ) do
+	for _, animSet in pairs( BLOCK_ANIM_SETS ) do
 		local animSetBase = animSet.frames[ 1 ]
 
 		for _, block in pairs( animSet.frames ) do
-			if blockTypes[ block ] == nil then
-				blockTypes[ block ] = {}
+			if BLOCK_TYPES[ block ] == nil then
+				BLOCK_TYPES[ block ] = {}
 			end
 
 			if block ~= animSetBase then
-				blockTypes[ block ].baseType = animSetBase
+				BLOCK_TYPES[ block ].baseType = animSetBase
 			end
-			blockTypes[ block ].animSet = animSet
+			BLOCK_TYPES[ block ].animSet = animSet
 		end
 	end
 
@@ -2773,16 +2787,16 @@ function speechSound()
 end
 
 function onRobotFound()
-	if not worldState.robotFound then
-		worldState.robotDialoguing = true
+	if not world.robotFound then
+		world.robotDialoguing = true
 		sfxm( 'speech3', 0.75 )
-		show_controls_guides( true )
+		showControlsGuides( true )
 	end
 end
 
 function updateGameLogic()
-	if not worldState.robotDialoguing then
-		if player.pos.x >= 19 * PIXELS_PER_TILE and player.pos.y >= 13 * PIXELS_PER_TILE and player.pos.y <= 17 * PIXELS_PER_TILE then
+	if not world.robotDialoguing then
+		if world.player.pos.x >= 19 * PIXELS_PER_TILE and world.player.pos.y >= 13 * PIXELS_PER_TILE and world.player.pos.y <= 17 * PIXELS_PER_TILE then
 			onRobotFound()
 		end
 	end
@@ -2792,7 +2806,7 @@ function updateActive()
 
 	updateGameLogic()
 
-	updateInput( player )
+	updateInput( world.player )
 
 	updateActors()
 	updateActorsOnBlocks()
@@ -2802,14 +2816,14 @@ function updateActive()
 end
 
 function pressToRestartAvailable()
-	return ( realTicks - worldState.gameOverStartTime ) / 60 > 1.5
+	return ( realTicks - world.gameOverStartTime ) / 60 > 1.5
 end
 
 function pressToRestart()
 	if pressToRestartAvailable() then
 		if btnp( 4 ) or btnp( 5 ) then
 			startGame()
-			show_controls_guides( false )
+			showControlsGuides( false )
 		end
 	end
 end
@@ -2829,13 +2843,13 @@ end
 
 function updateDialogue()
 	if btnp( 4 ) or btnp( 5 ) then
-		show_controls_guides( false )
+		showControlsGuides( false )
 
-		worldState.dialogueStep = worldState.dialogueStep + 1
+		world.dialogueStep = world.dialogueStep + 1
 
-		if worldState.dialogueStep > #dialogue then
-			worldState.robotDialoguing = false
-			worldState.robotFound = true
+		if world.dialogueStep > #DIALOGUE then
+			world.robotDialoguing = false
+			world.robotFound = true
 		else
 			speechSound()
 		end
@@ -2844,11 +2858,11 @@ end
 
 function update()
 
-	if worldState.robotDialoguing then
+	if world.robotDialoguing then
 		updateDialogue()
-	elseif worldState.gameWon then
+	elseif world.gameWon then
 		updateGameWon()
-	elseif worldState.gameLost then
+	elseif world.gameLost then
 		updateGameLost()
 	else
 		updateFuelGuage()
@@ -2863,8 +2877,10 @@ end
 
 -- DRAW
 
+-- TODO!!! world?
 local viewLeft = 0
 local viewTop = 0
+
 function setWorldView( x, y )
 	x = clamp( x, 0, WORLD_SIZE_PIXELS - screen_wid() )
 	y = clamp( y, 0, WORLD_SIZE_PIXELS - screen_hgt() )
@@ -2944,7 +2960,7 @@ function drawActors()
 	-- only draw actors in bounds.
 	local drawnActors = {}
 
-	for _, actor in ipairs( actors ) do
+	for _, actor in ipairs( world.actors ) do
 		if rectsOverlap( bounds, actorVisualBounds( actor ) ) then
 			assert( not actor.deleted )
 
@@ -2993,17 +3009,16 @@ function startGame()
 
 	musicm( 'ld46', 0.2 )
 
-	worldState = {
+	world = {
 		startGameTicks = ticks,
+		actors = {},
+		blocksToActors = {},
+		blockData = {},
+		robot = nil,
+		player = nil,
 	}
 
-	blockData = {}
-
 	restoreInitialMap()
-
-	actors = {}
-	robot = nil
-	player = nil
 
 	fixupBlocks()
 
@@ -3023,7 +3038,7 @@ function startGame()
 	barrel_smoothed = barrel_
 
 
-	player = createActor( 'player', 9 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
+	world.player = createActor( 'player', 9 * PIXELS_PER_TILE, 21 * PIXELS_PER_TILE )
 
 	populateWithActors()
 
@@ -3032,23 +3047,23 @@ end
 
 
 function drawHUDFuelGuage()
-	if not worldState.robotFound then return end
+	if not world.robotFound then return end
 
 	local screen_mid = screen_wid() // 2
 	local fuelGuageMaxWid = screen_wid() * 0.65
-	local guageWid = fuelGuageMaxWid * clamp( proportion( robot.fuel, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY, ROBOT_MAX_FUEL ), 0, 1 )
-	local halfWid = guageWid // 2
+	local gaugeWid = fuelGuageMaxWid * clamp( proportion( world.robot.fuel, MIN_FUEL_FOR_MAX_NEEDINESS_DISPLAY, ROBOT_MAX_FUEL ), 0, 1 )
+	local halfWid = gaugeWid // 2
 
-	local guageColor = colorLerp( BRIGHT_RED, WHITE, guage.flashBrightness )
+	local gaugeColor = colorLerp( BRIGHT_RED, WHITE, gauge.flashBrightness )
 
-	rectfill( screen_mid - halfWid, screen_hgt() - 5, screen_mid + halfWid, screen_hgt() - 3, guageColor )
+	rectfill( screen_mid - halfWid, screen_hgt() - 5, screen_mid + halfWid, screen_hgt() - 3, gaugeColor )
 end
 
 RECIPE_TEXT_COLOR = 0xFFE3E0F2
 RECIPE_TEXT_OFFSET_Y = 4
 
 function drawResourceIcon( resourceKey, x, y )
-	local config = actorConfigurations[ resourceKey ]
+	local config = ACTOR_CONFIGS[ resourceKey ]
 	local sprite = config.animations.idle.frames[1]
 	if sprite == nil then return end
 
@@ -3134,8 +3149,8 @@ end
 function drawHUDBlockInfo()
 	local screen_mid = screen_wid() // 2
 
-	local x = worldToTile( player.pos.x )
-	local y = worldToTile( player.pos.y )
+	local x = worldToTile( world.player.pos.x )
+	local y = worldToTile( world.player.pos.y )
 
 	return withBlockTypeAt( x, y, function( blockType, blockTypeIndex )
 		return withBaseBlockType( blockTypeIndex, function( blockTypeBase, baseBlockTypeIndex )
@@ -3184,7 +3199,7 @@ function printCentered( text, x, y, color, printFn )
 end
 
 function drawRobotNeed( needRecipe )
-	if worldState.robotFound then
+	if world.robotFound then
 		printRightAligned( ROBOT_NAME, screen_wid() - 10, 6, WHITE, printShadowed )
 		printRightAligned( ' needs', screen_wid() - 10, 14, WHITE, printShadowed )
 		drawIngredientList( needRecipe.inputs, screen_wid() - 16 - 10, 22 )
@@ -3192,10 +3207,10 @@ function drawRobotNeed( needRecipe )
 end
 
 function drawHUDQuest()
-	local robotRecipes = blockConfigs.robot_base_off.recipes
+	local robotRecipes = BLOCK_CONFIGS.robot_base_off.recipes
 	assert( robotRecipes ~= nil )
 
-	local sequence = robot.recipeSequence or 1
+	local sequence = world.robot.recipeSequence or 1
 	if sequence > #robotRecipes then return end
 
 	local currentNeed = robotRecipes[ sequence ]
@@ -3205,12 +3220,12 @@ function drawHUDQuest()
 end
 
 function drawInstructions()
-	if not worldState.moved then
+	if not world.moved then
 		printCentered( 'ARROW KEYS TO MOVE.', screen_wid() // 2, screen_hgt() - (16+20), BRIGHT_RED, printShadowed )
 	end
 
-	if not worldState.pickedUp then
-		local msgColor = worldState.moved and BRIGHT_RED or WHITE
+	if not world.pickedUp then
+		local msgColor = world.moved and BRIGHT_RED or WHITE
 		printCentered( 'Z and X TO PICK UP', screen_wid() // 2, screen_hgt() - (16+10), msgColor, printShadowed )
 		printCentered( 'AND PLACE THINGS.', screen_wid() // 2, screen_hgt() - (16), msgColor, printShadowed )
 	end
@@ -3226,8 +3241,8 @@ function drawHUD()
 	local drawnBlockType = drawHUDBlockInfo()
 
 	if drawnBlockType == nil
-		or (     drawnBlockType == blockConfigs.robot_base_off
-			  or drawnBlockType == blockConfigs.robot_base_on ) then
+		or (     drawnBlockType == BLOCK_CONFIGS.robot_base_off
+			  or drawnBlockType == BLOCK_CONFIGS.robot_base_on ) then
 
 		drawHUDQuest()
 	end
@@ -3238,7 +3253,7 @@ function drawPlayAgain( x )
 	if pressToRestartAvailable() then
 		printCentered( 'PLAY AGAIN!', x, screen_hgt() - 26, BRIGHT_RED, printShadowed )
 		printCentered( '[X]', x, screen_hgt() - 16, WHITE, printShadowed )
-		show_controls_guides( true )
+		showControlsGuides( true )
 	end
 end
 
@@ -3251,7 +3266,7 @@ function drawGameWon()
 	printCentered( 'and helped him get fixed!', midX, 42, WHITE, printShadowed )
 
 	printCentered( 'You won in:', midX, midY + 4, BRIGHT_RED, printShadowed )
-	printCentered( '' .. ( worldState.finalGameTicks - worldState.startGameTicks ) // 3600 .. ' minutes', midX, midY + 14, WHITE, printShadowed )
+	printCentered( '' .. ( world.finalGameTicks - world.startGameTicks ) // 3600 .. ' minutes', midX, midY + 14, WHITE, printShadowed )
 
 	drawPlayAgain( midX )
 end
@@ -3266,7 +3281,7 @@ function drawGameLost()
 	drawPlayAgain( midX )
 end
 
-dialogue = {
+DIALOGUE = {
 	{ "HELLO AGAIN, OLD FRIEND!",
 	  "Yes, it's me: " .. ROBOT_NAME .. "!" },
 	{ "It's been",
@@ -3294,15 +3309,15 @@ dialogue = {
 function drawDialogue()
 	camera( 0, 0 )
 
-	worldState.dialogueStep = worldState.dialogueStep or 1
+	world.dialogueStep = world.dialogueStep or 1
 
 	local midX = screen_wid() / 2
 
-	local speech = dialogue[ worldState.dialogueStep ]
+	local speech = DIALOGUE[ world.dialogueStep ]
 
 	local y = 24
 	for i, text in ipairs( speech ) do
-		printCentered( text, midX, y, (worldState.dialogueStep == 1 and i == 1 ) and BRIGHT_RED or WHITE, printShadowed )
+		printCentered( text, midX, y, (world.dialogueStep == 1 and i == 1 ) and BRIGHT_RED or WHITE, printShadowed )
 		y = y + 12
 	end
 
@@ -3313,16 +3328,16 @@ TITLE_FADE_DURATION_SECS = 3
 
 function drawTitle()
 
-	if worldState.robotDialoguing or worldState.robotFound then return end
+	if world.robotDialoguing or world.robotFound then return end
 
-	if( worldState.pickedUp or worldState.moved ) and worldState.titleFadeStart == nil then
-		worldState.titleFadeStart = ticks
+	if( world.pickedUp or world.moved ) and world.titleFadeStart == nil then
+		world.titleFadeStart = ticks
 	end
 
 	local opacity = 1
 
-	if worldState.titleFadeStart ~= nil then
-		local titleShownDuration = ( ticks - worldState.titleFadeStart ) / 60
+	if world.titleFadeStart ~= nil then
+		local titleShownDuration = ( ticks - world.titleFadeStart ) / 60
 
 		if titleShownDuration > TITLE_FADE_DURATION_SECS then
 			return
@@ -3353,11 +3368,11 @@ function draw()
 
 	drawActors()
 
-	if worldState.robotDialoguing then
+	if world.robotDialoguing then
 		drawDialogue()
-	elseif worldState.gameWon then
+	elseif world.gameWon then
 		drawGameWon()
-	elseif worldState.gameLost then
+	elseif world.gameLost then
 		drawGameLost()
 	else
 		drawHUD()
@@ -3409,16 +3424,16 @@ function findProviderRecipe( resourceKey )
 		end
 	end
 
-	local recipe, count = seekRecipeBook( blockConfigs )
+	local recipe, count = seekRecipeBook( BLOCK_CONFIGS )
 	if recipe == nil then
-		return seekRecipeBook( blockTypes )
+		return seekRecipeBook( BLOCK_TYPES )
 	else
 		return recipe, (count or 1)
 	end
 end
 
 function findProviderSource( resourceKey )
-	for key, config in pairs( blockConfigs ) do
+	for key, config in pairs( BLOCK_CONFIGS ) do
 		if config.harvestSource == resourceKey then
 			return config
 		end
@@ -3453,7 +3468,7 @@ function totalRecipeCosts( recipe )
 end
 
 function reportResourceNeeds()
-	local robotRecipes = blockConfigs.robot_base_off.recipes
+	local robotRecipes = BLOCK_CONFIGS.robot_base_off.recipes
 	local resourceCounts = {
 		duration = 0
 	}
@@ -3474,3 +3489,17 @@ function reportResourceNeeds()
 end
 
 -- reportResourceNeeds()
+
+function save()
+	world.ticks = ticks
+	world.realTicks = realTicks
+
+
+end
+
+function load( memento )
+	trace( 'load' )
+
+	ticks = world.ticks or ticks
+	realTicks = world.realTicks or realTicks
+end
