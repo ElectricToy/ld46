@@ -206,6 +206,7 @@ filter_mode( "Nearest" )
 screen_size( 220, 0 )
 
 local WHITE = 0xFFE3E0F2
+local YELLOW = 0xFFDBC762
 local BRIGHT_RED = 0xFFC23324
 local LIGHT_GRAY = 0xFFB0B8BF
 local BRIGHT_BLUE = 0xFF0466c2
@@ -1711,7 +1712,7 @@ function actorULOffset( actor )
 end
 
 function drawCount( count, x, y )
-	printShadowed( '' .. count, math.floor( x ), math.floor( y ), LIGHT_GRAY )
+	printShadowed( '' .. count, math.floor( x ), math.floor( y ), YELLOW, 3 )
 end
 
 function drawActorCount( actor )
@@ -3168,18 +3169,18 @@ function drawBlockRecipes( blockType )
 	end
 end
 
-function printShadowed( text, x, y, color, shadowColor )
-	print( text, x, y+1, shadowColor or 0xFF161C21 )
-	print( text, x, y, color )
+function printShadowed( text, x, y, color, font, shadowColor )
+	print( text, x, y+1, shadowColor or 0xFF161C21, font )
+	print( text, x, y, color, font )
 end
 
-function printOutlined( text, x, y, color, outlineColor )
+function printOutlined( text, x, y, color, font, outlineColor )
 	outlineColor = outlineColor or WHITE
-	print( text, x+1, y  , outlineColor )
-	print( text, x-1, y  , outlineColor )
-	print( text, x  , y+1, outlineColor )
-	print( text, x  , y-1, outlineColor )
-	print( text, x, y, color )
+	print( text, x+1, y  , outlineColor, font )
+	print( text, x-1, y  , outlineColor, font )
+	print( text, x  , y+1, outlineColor, font )
+	print( text, x  , y-1, outlineColor, font )
+	print( text, x, y, color, font )
 end
 
 function drawHUDBlockInfo()
@@ -3194,17 +3195,18 @@ function drawHUDBlockInfo()
 			local textY = 6
 			local name = blockTypeBase.name
 			if name ~= nil and name ~= '' then
-				name = name .. ( blockTypeBase.harvestSource ~= nil and ' - use Harvester' or '' )
-				printOutlined( name or '', textX, textY, BRIGHT_RED, WHITE )
+				printOutlined( name or '', textX, textY, BRIGHT_RED, 2, WHITE )
 				textY = textY + 10
 
 				if type( blockTypeBase.explanation ) == 'table' then
 					for _, text in ipairs( blockTypeBase.explanation ) do
-						printShadowed( text, textX, textY, 0xFFB0B8BF )
+						printShadowed( text, textX, textY, WHITE )
 						textY = textY + 10
 					end
 				else
-					print( blockTypeBase.explanation or '', textX, textY, 0xFFB0B8BF )
+					local explanation = blockTypeBase.explanation
+					explanation = explanation or ( blockTypeBase.harvestSource ~= nil and 'USE HARVESTER' or '' )
+					printShadowed( explanation, textX, textY, WHITE )
 					textY = textY + 10
 				end
 
@@ -3226,18 +3228,18 @@ function drawHUDBlockInfo()
 	end)
 end
 
-function printRightAligned( text, x, y, color, printFn )
-	( printFn or print )( text, x - #text * 8, y, color )
+function printRightAligned( text, x, y, color, font, printFn )
+	( printFn or print )( text, x - #text * 8, y, color, font )
 end
 
-function printCentered( text, x, y, color, printFn )
-	( printFn or print )( text, x - #text * 4, y, color )
+function printCentered( text, x, y, color, font, printFn )
+	( printFn or print )( text, x - #text * 4, y, color, font )
 end
 
 function drawRobotNeed( needRecipe )
 	if world.robotFound then
-		printRightAligned( ROBOT_NAME, screen_wid() - 10, 6, WHITE, printShadowed )
-		printRightAligned( ' needs', screen_wid() - 10, 14, WHITE, printShadowed )
+		printRightAligned( ROBOT_NAME, screen_wid() - 10, 6, WHITE, 1, printShadowed )
+		printRightAligned( ' needs', screen_wid() - 10, 14, WHITE, 1, printShadowed )
 		drawIngredientList( needRecipe.inputs, screen_wid() - 16 - 10, 22 )
 	end
 end
@@ -3257,13 +3259,13 @@ end
 
 function drawInstructions()
 	if not world.moved then
-		printCentered( 'ARROW KEYS TO MOVE.', screen_wid() // 2, screen_hgt() - (16+20), BRIGHT_RED, printShadowed )
+		printCentered( 'ARROW KEYS TO MOVE.', screen_wid() // 2, screen_hgt() - (16+20), BRIGHT_RED, 1, printShadowed )
 	end
 
 	if not world.pickedUp then
 		local msgColor = world.moved and BRIGHT_RED or WHITE
-		printCentered( 'Z and X TO PICK UP', screen_wid() // 2, screen_hgt() - (16+10), msgColor, printShadowed )
-		printCentered( 'AND PLACE THINGS.', screen_wid() // 2, screen_hgt() - (16), msgColor, printShadowed )
+		printCentered( 'Z and X TO PICK UP', screen_wid() // 2, screen_hgt() - (16+10), msgColor, 3, printShadowed )
+		printCentered( 'AND PLACE THINGS.', screen_wid() // 2, screen_hgt() - (16), msgColor, 3, printShadowed )
 	end
 end
 
@@ -3287,8 +3289,8 @@ end
 
 function drawPlayAgain( x )
 	if pressToRestartAvailable() then
-		printCentered( 'PLAY AGAIN!', x, screen_hgt() - 26, BRIGHT_RED, printShadowed )
-		printCentered( '[X]', x, screen_hgt() - 16, WHITE, printShadowed )
+		printCentered( 'PLAY AGAIN!', x, screen_hgt() - 26, BRIGHT_RED, 2, printShadowed )
+		printCentered( '[X]', x, screen_hgt() - 16, WHITE, 2, printShadowed )
 		showControlsGuides( true )
 	end
 end
@@ -3297,12 +3299,12 @@ function drawGameWon()
 	camera( 0, 0 )
 	local midX = screen_wid() // 2
 	local midY = screen_hgt() // 2
-	printCentered( 'YOU WON!', midX, 16, BRIGHT_RED, printShadowed )
-	printCentered( 'You Kept ' .. ROBOT_NAME .. ' Alive', midX, 32, WHITE, printShadowed )
-	printCentered( 'and helped him get fixed!', midX, 42, WHITE, printShadowed )
+	printCentered( 'YOU WON!', midX, 16, BRIGHT_RED, 2, printShadowed )
+	printCentered( 'You Kept ' .. ROBOT_NAME .. ' Alive', midX, 32, WHITE, 1, printShadowed )
+	printCentered( 'and helped him get fixed!', midX, 42, WHITE, 1, printShadowed )
 
-	printCentered( 'You won in:', midX, midY + 4, BRIGHT_RED, printShadowed )
-	printCentered( '' .. ( world.finalGameTicks - world.startGameTicks ) // 3600 .. ' minutes', midX, midY + 14, WHITE, printShadowed )
+	printCentered( 'You won in:', midX, midY + 4, BRIGHT_RED, 2, printShadowed )
+	printCentered( '' .. ( world.finalGameTicks - world.startGameTicks ) // 3600 .. ' minutes', midX, midY + 14, WHITE, 1,printShadowed )
 
 	drawPlayAgain( midX )
 end
@@ -3353,11 +3355,11 @@ function drawDialogue()
 
 	local y = 24
 	for i, text in ipairs( speech ) do
-		printCentered( text, midX, y, (world.dialogueStep == 1 and i == 1 ) and BRIGHT_RED or WHITE, printShadowed )
+		printCentered( text, midX, y, (world.dialogueStep == 1 and i == 1 ) and BRIGHT_RED or WHITE, (world.dialogueStep == 1 and i == 1 ) and 2 or 4, printShadowed )
 		y = y + 12
 	end
 
-	printCentered( '[X] or [Z] to continue', midX, screen_hgt() - 20, BRIGHT_RED, printShadowed )
+	printCentered( '[X] or [Z] to continue', midX, screen_hgt() - 20, BRIGHT_RED, 3, printShadowed )
 end
 
 TITLE_FADE_DURATION_SECS = 3
@@ -3389,7 +3391,7 @@ function drawTitle()
 
 	fillp( bitPatternForAlpha( opacity ))
 	spr( 19, midX - 42, 4, 6, 2 )
-	printCentered( 'KEEP. HIM. ALIVE.', midX + 4, 36, WHITE, printShadowed )
+	printCentered( 'KEEP. HIM. ALIVE.', midX + 4, 36, WHITE, 2, printShadowed )
 
 	fillp(0)
 end
